@@ -127,6 +127,34 @@ await new Promise((resolve, reject) => {
 })
 await rpc(ws, 'Runtime.enable')
 
+/**
+ * The debug target appears before the renderer has finished navigating, and
+ * evaluating too early runs against about:blank, where location.origin is null.
+ * Wait for a real document before asserting anything.
+ */
+async function waitForRenderer() {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const state = await evaluate(
+      ws,
+      `JSON.stringify({
+         origin: window.location.origin,
+         ready: document.readyState,
+         mounted: !!document.querySelector('header')
+       })`,
+      false
+    ).catch(() => null)
+    if (state) {
+      const parsed = JSON.parse(state)
+      if (parsed.origin?.startsWith('http') && parsed.ready === 'complete' && parsed.mounted) {
+        return
+      }
+    }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  throw new Error('renderer never finished loading')
+}
+await waitForRenderer()
+
 // --- Window geometry (checked first: a stray drag would invalidate it) --------
 const vp = JSON.parse(
   await evaluate(ws, 'JSON.stringify({ w: innerWidth, h: innerHeight })', false)
