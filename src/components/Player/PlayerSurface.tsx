@@ -52,20 +52,26 @@ export function PlayerSurface({
   children
 }: PlayerSurfaceProps): React.JSX.Element {
   const videoId = usePlayerStore((state) => state.videoId)
+  const playlistId = usePlayerStore((state) => state.playlistId)
   const error = usePlayerStore((state) => state.error)
   const clickShield = usePlayerStore((state) => state.clickShield)
   const playbackState = usePlayerStore((state) => state.playbackState)
 
   const isLoading = playbackState === 'loading' || playbackState === 'buffering'
+  // A playlist has no videoId of its own until a track reports one, so keying
+  // any of this off videoId alone leaves the empty-state prompt painted over a
+  // playing playlist and -- worse -- drops the click shield, letting the iframe
+  // take keyboard focus.
+  const hasMedia = Boolean(videoId) || Boolean(playlistId)
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
       <div ref={mountRef} className="absolute inset-0 [&>iframe]:h-full [&>iframe]:w-full" />
 
-      {!videoId && !error && <EmptyState />}
-      {videoId && isLoading && !error && <LoadingState />}
+      {!hasMedia && !error && <EmptyState />}
+      {hasMedia && isLoading && !error && <LoadingState />}
 
-      {clickShield && videoId && !error && (
+      {clickShield && hasMedia && !error && (
         <button
           type="button"
           aria-label="Play or pause"
