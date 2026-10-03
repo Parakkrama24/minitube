@@ -1,7 +1,10 @@
-import { app, BrowserWindow, Menu } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { registerWindowIpc } from './ipc/window'
+import { releaseMediaKeys, setMediaKeysEnabled } from './mediaKeys'
+import { installAppMenu } from './menu'
 import { startRendererServer, type LoopbackServer } from './server'
+import { getSettings, patchSettings } from './settings'
 import { createPlayerWindow } from './window'
 
 /**
@@ -11,7 +14,6 @@ import { createPlayerWindow } from './window'
  * loopback path gets tested.
  */
 const devServerUrl = process.env['ELECTRON_RENDERER_URL']
-const usingDevServer = Boolean(devServerUrl)
 
 let mainWindow: BrowserWindow | null = null
 let rendererServer: LoopbackServer | null = null
@@ -53,20 +55,30 @@ async function bootstrap(): Promise<void> {
   await app.whenReady()
   app.setAppUserModelId('com.minitube.app')
 
-  if (!usingDevServer) {
-    // Frameless window has no menu bar; drop the default menu so its accelerators
-    // cannot fire. Kept in dev for the devtools shortcut.
-    Menu.setApplicationMenu(null)
-  }
-
   const appOrigin = await resolveAppOrigin()
+  const getWindow = (): BrowserWindow | null => mainWindow
 
-  registerWindowIpc(() => mainWindow)
+  registerWindowIpc(getWindow)
 
   mainWindow = createPlayerWindow(appOrigin)
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  // Registers the accelerators. The frameless window shows no menu bar, but menu
+  // accelerators still fire -- and unlike the renderer's keydown listener they
+  // fire even when the YouTube iframe has focus, which is why the menu owns
+  // every Ctrl+* shortcut.
+  installAppMenu(getWindow)
+
+  // Restore the opt-in media key. If another app already holds it, record that
+  // it is not actually ours rather than leaving the setting claiming otherwise.
+  if (getSettings().mediaKeys) {
+    const held = setMediaKeysEnabled(true, () => {
+      getWindow()?.webContents.send('menu:command', 'toggle-play')
+    })
+    if (!held) patchSettings({ mediaKeys: false })
+  }
 
   await mainWindow.loadURL(appOrigin)
 }
@@ -86,6 +98,8 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('will-quit', () => {
+    // Global shortcuts outlive the window, so they must be handed back.
+    releaseMediaKeys()
     void rendererServer?.close()
     rendererServer = null
   })

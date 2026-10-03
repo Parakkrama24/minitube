@@ -3,6 +3,7 @@ import { ControlBar } from './components/Controls/ControlBar'
 import { PlayerSurface } from './components/Player/PlayerSurface'
 import { TitleBar } from './components/TitleBar/TitleBar'
 import { UrlInput } from './components/UrlInput/UrlInput'
+import { useMenuCommands } from './hooks/useMenuCommands'
 import { usePlaybackProgress } from './hooks/usePlaybackProgress'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
 
@@ -12,30 +13,26 @@ export default function App(): React.JSX.Element {
   // Samples elapsed time only while playing; see usePlaybackProgress.
   usePlaybackProgress(player.getCurrentTime)
 
-  // Window-level shortcuts. These work because the click shield keeps focus in
-  // our document instead of letting the YouTube iframe swallow keypresses.
+  // Native menu commands, its accelerators, and the opt-in media key.
+  useMenuCommands(player)
+
+  /**
+   * Space only.
+   *
+   * Every Ctrl+* shortcut is owned by the native menu's accelerators
+   * (electron/main/menu.ts), which fire even when the YouTube iframe has focus.
+   * Handling them here as well would make each one fire twice. Space cannot be a
+   * real accelerator because it would swallow spaces typed into the URL field,
+   * so it stays here, guarded against firing while an input is focused.
+   */
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null
       if (target?.tagName === 'INPUT') return
 
-      if (event.code === 'Space' && !event.ctrlKey && !event.altKey) {
+      if (event.code === 'Space' && !event.ctrlKey && !event.altKey && !event.shiftKey) {
         event.preventDefault()
         player.togglePlay()
-        return
-      }
-
-      if (event.ctrlKey && !event.altKey) {
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault()
-          player.seekBy(-10)
-        } else if (event.key === 'ArrowRight') {
-          event.preventDefault()
-          player.seekBy(10)
-        } else if (event.key.toLowerCase() === 'm') {
-          event.preventDefault()
-          player.toggleMute()
-        }
       }
     }
 

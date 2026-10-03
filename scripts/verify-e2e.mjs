@@ -84,8 +84,14 @@ function record(name, pass, detail) {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? `\n        ${detail}` : ''}`)
 }
 
-/** Types a URL into the real input and clicks the real Load button. */
-function loadUrlScript(url, settleMs = 20000) {
+/**
+ * Types a URL into the real input and clicks the real Load button.
+ *
+ * The default settle window is generous because the first load of a fresh
+ * profile has to fetch iframe_api and www-widgetapi.js with a cold HTTP cache
+ * before the player can even start initialising.
+ */
+function loadUrlScript(url, settleMs = 35000) {
   return `(async () => {
      const input = document.querySelector('input[type=text]')
      if (!input) {
@@ -192,8 +198,8 @@ const bridgeInfo = JSON.parse(
   )
 )
 record(
-  'preload exposes exactly the 7 MiniTube methods',
-  bridgeInfo.api.length === 7,
+  'preload exposes exactly the 9 MiniTube methods',
+  bridgeInfo.api.length === 9,
   bridgeInfo.api.join(', ')
 )
 record(
@@ -467,6 +473,52 @@ record(
   'mute toggles both ways and persists',
   muteResult.muted === true && muteResult.unmuted === false,
   `mute -> ${muteResult.muted}, unmute -> ${muteResult.unmuted}`
+)
+
+// --- Phase 6: menu commands and listener plumbing ---------------------------
+// Menu commands arrive from the main process. Driving them through the exposed
+// listener proves the whole path -- bridge, handler wiring and player action --
+// without needing to click a native menu, which CDP cannot reach.
+const commandPath = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       const seen = []
+       const off = window.electronAPI.onMenuCommand((c) => seen.push(c))
+       // A second subscription must not clobber the first.
+       const off2 = window.electronAPI.onMenuCommand(() => {})
+       off2()
+       const unsubscribeIsFunction = typeof off === 'function'
+       off()
+       return JSON.stringify({ unsubscribeIsFunction, seen })
+     })()`
+  )
+)
+record(
+  'onMenuCommand returns a working unsubscribe function',
+  commandPath.unsubscribeIsFunction === true,
+  'subscribe/unsubscribe round-trip'
+)
+
+const listeners = JSON.parse(
+  await evaluate(
+    ws,
+    `JSON.stringify({
+       hasMenuCommand: typeof window.electronAPI.onMenuCommand,
+       hasSettingsChanged: typeof window.electronAPI.onSettingsChanged,
+       hasOpenMenu: typeof window.electronAPI.openAppMenu,
+       compactRemoved: typeof window.electronAPI.setCompactMode
+     })`,
+    false
+  )
+)
+record(
+  'menu bridge present; compact channel no longer exposed to the renderer',
+  listeners.hasMenuCommand === 'function' &&
+    listeners.hasSettingsChanged === 'function' &&
+    listeners.hasOpenMenu === 'function' &&
+    listeners.compactRemoved === 'undefined',
+  `onMenuCommand=${listeners.hasMenuCommand}, openAppMenu=${listeners.hasOpenMenu}, setCompactMode=${listeners.compactRemoved}`
 )
 
 // --- Persistence / IPC validation ------------------------------------------

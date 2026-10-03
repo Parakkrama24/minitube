@@ -52,13 +52,33 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mediaKeys: false
 }
 
+/**
+ * Actions the native menu and its accelerators ask the renderer to perform.
+ *
+ * Anything that touches the player lives in the renderer, because that is where
+ * the provider instance is. The main process owns only what it can act on
+ * directly: window geometry, always-on-top, and the global media key.
+ */
+export type MenuCommand =
+  | 'new-video'
+  | 'reload-video'
+  | 'toggle-play'
+  | 'stop'
+  | 'seek-back'
+  | 'seek-forward'
+  | 'toggle-mute'
+
 /** The exact surface exposed on `window.electronAPI`. Nothing else crosses the bridge. */
 export interface MiniTubeApi {
   minimizeWindow(): Promise<void>
   closeWindow(): Promise<void>
   setAlwaysOnTop(value: boolean): Promise<boolean>
-  setCompactMode(value: boolean): Promise<void>
   getSettings(): Promise<AppSettings>
   patchSettings(patch: Partial<AppSettings>): Promise<AppSettings>
   openExternal(url: string): Promise<boolean>
+  /** Pops the native menu at the cursor. */
+  openAppMenu(): Promise<void>
+  /** Both listeners return an unsubscribe function; callers must call it. */
+  onMenuCommand(handler: (command: MenuCommand) => void): () => void
+  onSettingsChanged(handler: (settings: AppSettings) => void): () => void
 }

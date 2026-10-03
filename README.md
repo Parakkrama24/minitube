@@ -7,10 +7,10 @@ tab that is actually playing your music or lecture is the hardest one to find.
 MiniTube keeps that playback in a dedicated floating widget that stays above your
 other windows, so pausing something takes one click instead of a tab hunt.
 
-**Status: Phases 1-5 of 8 complete.** The player is usable: video loads, plays,
-seeks, and its volume and position survive a restart. The application menu,
-opt-in media keys, compact mode and the installer are not built yet -- see
-[Roadmap](#roadmap).
+**Status: Phases 1-6 of 8 complete.** The player is usable and complete as a
+widget: video loads, plays, seeks, its state survives a restart, and a native
+menu carries the window and playback actions. Only the installer and discretionary
+visual polish remain -- see [Roadmap](#roadmap).
 
 ## Features
 
@@ -30,13 +30,16 @@ Working today:
 - Click shield: keeps keyboard focus in MiniTube and hides YouTube's end-screen
   recommendations (see [Click shield](#click-shield))
 - Open the current video in your real browser
-- `Space`, `Ctrl+Left`, `Ctrl+Right`, `Ctrl+M` wired to play/pause, seek and mute
+- Native menu from the title bar: new video, reload, transport, always-on-top,
+  compact mode, media keys, open in YouTube, about, quit
+- Compact mode (320x278) toggled from the menu
+- Opt-in capture of the keyboard Play/Pause media key, off by default
+- Keyboard shortcuts -- see [Keyboard shortcuts](#keyboard-shortcuts)
 - Remembers volume, mute state and the last video across restarts; the video is
   re-cued but never auto-played
 - Dark, compact UI
 
-Not yet built: compact-mode toggle, global media keys, application menu,
-playback speed, installer.
+Not yet built: playback speed, installer.
 
 ## Tech stack
 
@@ -82,8 +85,32 @@ npx electron . --remote-debugging-port=9222
 npm run verify:e2e
 ```
 
-It loads real videos, so it needs network access. 23 checks currently pass
+It loads real videos, so it needs network access. 25 checks currently pass
 against a production build.
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Space` | Play / pause |
+| `Ctrl+Left` / `Ctrl+Right` | Back / forward 10 seconds |
+| `Ctrl+M` | Mute |
+| `Ctrl+N` | New video (focus the URL field) |
+| `Ctrl+R` | Reload the current video |
+| `Ctrl+Shift+T` | Toggle always-on-top |
+| `Ctrl+Shift+C` | Toggle compact mode |
+| `Ctrl+Q` | Quit |
+
+Every `Ctrl+*` binding is owned by the **native menu's accelerators**, not by a
+renderer key listener. Menu accelerators fire even though a frameless window
+shows no menu bar, and -- the reason it matters -- they fire even when the
+YouTube iframe has stolen focus, which a renderer listener cannot do. The
+renderer must therefore not also handle these keys, or each one would fire twice.
+
+`Space` is the deliberate exception. As a real accelerator it would swallow
+spaces typed into the URL field, so the menu shows it with
+`registerAccelerator: false` -- label only, key not claimed -- and the renderer
+owns it, ignoring the key while an input is focused.
 
 ## Architecture
 
@@ -108,6 +135,8 @@ YouTubeProvider  -> YouTube IFrame Player API
 electron/
   main/
     index.ts      app lifecycle, CSP, single-instance lock
+    menu.ts       native menu, accelerators, compact-mode toggle
+    mediaKeys.ts  opt-in globalShortcut for the Play/Pause key
     window.ts     window creation, bounds validation, navigation guards
     server.ts     loopback HTTP server for the built renderer
     settings.ts   electron-store wrapper + renderer write whitelist
@@ -120,6 +149,7 @@ src/
   providers/      MediaProvider interface + YouTubeProvider
   hooks/          useYouTubePlayer -- owns the single provider instance
                   usePlaybackProgress -- the playback-gated elapsed-time ticker
+                  useMenuCommands -- routes menu commands into the player
   stores/         Zustand store
   utils/youtube.ts extractYouTubeVideoId
 ```
@@ -223,8 +253,10 @@ sets it. A normal terminal does not; clear the variable if you hit it.
 ## Security
 
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`
-- The renderer sees exactly seven methods on `window.electronAPI` and no
-  `ipcRenderer`, `require` or `process`
+- The renderer sees exactly nine methods on `window.electronAPI` and no
+  `ipcRenderer`, `require` or `process`. The two event subscriptions hand back an
+  unsubscribe function rather than exposing `removeListener`, so the renderer
+  cannot detach another component's handler
 - Every IPC handler validates its payload; unknown settings keys are dropped,
   volume is clamped, and window bounds are not renderer-writable
 - URL parsing matches hostnames exactly against an allowlist, so
@@ -245,9 +277,9 @@ sets it. A normal terminal does not; clear the variable if you hit it.
 | 3 | YouTube integration | done |
 | 4 | Full control bar: stop, seek, volume, mute, progress | done |
 | 5 | Persistence: volume, mute, last video restore | done |
-| 6 | Application menu, opt-in media keys | next |
-| 7 | UI polish, compact mode, animations | planned |
-| 8 | `MiniTube-Setup.exe` installer | planned |
+| 6 | Application menu, opt-in media keys | done |
+| 7 | UI polish, compact mode, animations | mostly inherent; compact mode done |
+| 8 | `MiniTube-Setup.exe` installer | next |
 
 ### How the elapsed time is tracked
 

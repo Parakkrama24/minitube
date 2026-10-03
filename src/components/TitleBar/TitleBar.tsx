@@ -1,5 +1,5 @@
 import { usePlayerStore } from '../../stores/playerStore'
-import { CloseIcon, MinimizeIcon, PinIcon } from '../icons'
+import { CloseIcon, MenuIcon, MinimizeIcon, PinIcon } from '../icons'
 
 interface TitleBarButtonProps {
   label: string
@@ -59,6 +59,9 @@ export function TitleBar(): React.JSX.Element {
       </div>
 
       <div className="flex shrink-0 items-center">
+        <TitleBarButton label="Menu" onClick={() => void window.electronAPI.openAppMenu()}>
+          <MenuIcon />
+        </TitleBarButton>
         <TitleBarButton
           label={alwaysOnTop ? 'Always on top: on' : 'Always on top: off'}
           active={alwaysOnTop}

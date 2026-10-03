@@ -231,3 +231,13 @@ export function VolumeMutedIcon({ className = BASE }: IconProps): React.JSX.Elem
     </svg>
   )
 }
+
+export function MenuIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <circle cx="8" cy="3.6" r="1.15" />
+      <circle cx="8" cy="8" r="1.15" />
+      <circle cx="8" cy="12.4" r="1.15" />
+    </svg>
+  )
+}

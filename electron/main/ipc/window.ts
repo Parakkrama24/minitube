@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, shell } from 'electron'
-import { WINDOW_PRESETS } from '../../shared/types'
+import { popupAppMenu } from '../menu'
 import { getSettings, patchSettings, sanitizeSettingsPatch } from '../settings'
 import { applyAlwaysOnTop, isAllowedExternalUrl } from '../window'
 
@@ -26,13 +26,10 @@ export function registerWindowIpc(getWindow: WindowGetter): void {
     return next
   })
 
-  ipcMain.handle('window:set-compact', (_event, value: unknown) => {
-    const win = getWindow()
-    if (!win) return
-    const preset = value ? WINDOW_PRESETS.compact : WINDOW_PRESETS.normal
-    const { x, y } = win.getBounds()
-    // Resize in place rather than letting the window jump to a new position.
-    win.setBounds({ x, y, width: preset.width, height: preset.height }, true)
+  // Compact mode is reachable from the menu rather than the bridge, so the
+  // renderer needs no channel for it.
+  ipcMain.handle('menu:open', () => {
+    popupAppMenu(getWindow)
   })
 
   ipcMain.handle('settings:get', () => getSettings())
