@@ -47,7 +47,7 @@ export function sanitizeSettingsPatch(input: unknown): Partial<AppSettings> {
   // Validated against the id alphabet rather than merely length-capped: this
   // value is interpolated into a player request, and the renderer is untrusted.
   if (src.favouritePlaylistId === null) {
-    out.favouritePlaylistId = undefined
+    out.favouritePlaylistId = ''
   } else if (
     typeof src.favouritePlaylistId === 'string' &&
     /^[A-Za-z0-9_-]{13,64}$/.test(src.favouritePlaylistId)

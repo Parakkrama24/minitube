@@ -76,13 +76,25 @@ export type MenuCommand =
   | 'previous-track'
   | 'set-favourite-playlist'
 
+/**
+ * Shape of a settings write. Optional fields accept null to clear them, which
+ * sanitizeSettingsPatch already honours -- un-starring a playlist has to be able
+ * to remove the value, not just overwrite it.
+ */
+export type AppSettingsPatch = Partial<
+  Omit<AppSettings, 'favouritePlaylistId' | 'favouritePlaylistTitle'>
+> & {
+  favouritePlaylistId?: string | null
+  favouritePlaylistTitle?: string | null
+}
+
 /** The exact surface exposed on `window.electronAPI`. Nothing else crosses the bridge. */
 export interface MiniTubeApi {
   minimizeWindow(): Promise<void>
   closeWindow(): Promise<void>
   setAlwaysOnTop(value: boolean): Promise<boolean>
   getSettings(): Promise<AppSettings>
-  patchSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+  patchSettings(patch: AppSettingsPatch): Promise<AppSettings>
   openExternal(url: string): Promise<boolean>
   /** Pops the native menu at the cursor. */
   openAppMenu(): Promise<void>

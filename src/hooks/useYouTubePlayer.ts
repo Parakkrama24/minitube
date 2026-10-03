@@ -19,8 +19,8 @@ export interface YouTubePlayerControls {
   getCurrentTime(): number
   next(): void
   previous(): void
-  /** Stores the currently playing playlist as the launch favourite. */
-  setFavouritePlaylist(): void
+  /** Marks or unmarks the current playlist as the one to autoplay on launch. */
+  toggleFavouritePlaylist(): void
 }
 
 /**
@@ -235,20 +235,24 @@ export function useYouTubePlayer(): YouTubePlayerControls {
     providerRef.current?.previous()
   }, [])
 
-  const setFavouritePlaylist = useCallback(() => {
+  const toggleFavouritePlaylist = useCallback(() => {
     const store = usePlayerStore.getState()
     const playlistId = store.playlistId
     if (!playlistId) {
       store.setError({
         code: 'invalid-url',
-        message: 'Load a playlist first, then set it as your favourite.'
+        message: 'Load a playlist first, then star it to play it on launch.'
       })
       return
     }
-    store.setFavouritePlaylistId(playlistId)
+
+    const alreadyFavourite = store.favouritePlaylistId === playlistId
+    const next = alreadyFavourite ? null : playlistId
+    store.setFavouritePlaylistId(next)
     void window.electronAPI.patchSettings({
-      favouritePlaylistId: playlistId,
-      favouritePlaylistTitle: store.title || playlistId
+      // null clears it; sanitizeSettingsPatch accepts that explicitly.
+      favouritePlaylistId: next,
+      favouritePlaylistTitle: next ? store.title || playlistId : ''
     })
   }, [])
 
@@ -264,6 +268,6 @@ export function useYouTubePlayer(): YouTubePlayerControls {
     getCurrentTime,
     next,
     previous,
-    setFavouritePlaylist
+    toggleFavouritePlaylist
   }
 }

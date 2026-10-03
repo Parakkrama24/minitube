@@ -57,6 +57,7 @@ export default function App(): React.JSX.Element {
         onToggleMute={player.toggleMute}
         onNext={player.next}
         onPrevious={player.previous}
+        onToggleFavourite={player.toggleFavouritePlaylist}
       />
     </div>
   )

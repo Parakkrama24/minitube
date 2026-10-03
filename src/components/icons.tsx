@@ -259,3 +259,27 @@ export function NextTrackIcon({ className = BASE }: IconProps): React.JSX.Elemen
     </svg>
   )
 }
+
+export function StarIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 1.9l1.78 3.74 4.02.56-2.92 2.9.71 4.08L8 11.25l-3.59 1.93.71-4.08-2.92-2.9 4.02-.56L8 1.9Z" />
+    </svg>
+  )
+}
+
+export function StarOutlineIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 1.9l1.78 3.74 4.02.56-2.92 2.9.71 4.08L8 11.25l-3.59 1.93.71-4.08-2.92-2.9 4.02-.56L8 1.9Z" />
+    </svg>
+  )
+}

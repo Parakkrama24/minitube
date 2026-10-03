@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AppSettings, MenuCommand, MiniTubeApi } from '../shared/types'
+import type { AppSettings, AppSettingsPatch, MenuCommand, MiniTubeApi } from '../shared/types'
 
 /**
  * The only bridge between renderer and main. No ipcRenderer, no Node API and no
@@ -15,7 +15,7 @@ const api: MiniTubeApi = {
   closeWindow: () => ipcRenderer.invoke('window:close'),
   setAlwaysOnTop: (value: boolean) => ipcRenderer.invoke('window:set-always-on-top', value),
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<AppSettings>,
-  patchSettings: (patch: Partial<AppSettings>) =>
+  patchSettings: (patch: AppSettingsPatch) =>
     ipcRenderer.invoke('settings:patch', patch) as Promise<AppSettings>,
   openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
   openAppMenu: () => ipcRenderer.invoke('menu:open'),

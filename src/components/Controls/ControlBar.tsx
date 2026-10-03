@@ -10,6 +10,8 @@ import {
   PrevTrackIcon,
   Rewind10Icon,
   ShieldIcon,
+  StarIcon,
+  StarOutlineIcon,
   StopIcon
 } from '../icons'
 import { ProgressBar } from './ProgressBar'
@@ -24,6 +26,7 @@ interface ControlBarProps {
   onToggleMute: () => void
   onNext: () => void
   onPrevious: () => void
+  onToggleFavourite: () => void
 }
 
 interface IconButtonProps {
@@ -71,7 +74,8 @@ export function ControlBar({
   onVolumeChange,
   onToggleMute,
   onNext,
-  onPrevious
+  onPrevious,
+  onToggleFavourite
 }: ControlBarProps): React.JSX.Element {
   const videoId = usePlayerStore((state) => state.videoId)
   const title = usePlayerStore((state) => state.title)
@@ -81,6 +85,11 @@ export function ControlBar({
   const urlInputExpanded = usePlayerStore((state) => state.urlInputExpanded)
   const setUrlInputExpanded = usePlayerStore((state) => state.setUrlInputExpanded)
   const playlistPosition = usePlayerStore((state) => state.playlistPosition)
+  const playlistId = usePlayerStore((state) => state.playlistId)
+  const favouritePlaylistId = usePlayerStore((state) => state.favouritePlaylistId)
+  const autoplay = usePlayerStore((state) => state.autoplay)
+
+  const isFavourite = Boolean(playlistId) && playlistId === favouritePlaylistId
 
   const isPlaying = playbackState === 'playing'
   // A playlist counts as playable even before its first track reports an id.
@@ -120,6 +129,21 @@ export function ControlBar({
         {playlistPosition && (
           <IconButton label="Next track (Ctrl+Shift+Right)" onClick={onNext}>
             <NextTrackIcon className="h-3.5 w-3.5" />
+          </IconButton>
+        )}
+        {playlistId && (
+          <IconButton
+            label={
+              isFavourite
+                ? autoplay
+                  ? 'Starred: plays automatically when MiniTube opens'
+                  : 'Starred, but autoplay on launch is off (see menu)'
+                : 'Star this playlist so it plays when MiniTube opens'
+            }
+            active={isFavourite}
+            onClick={onToggleFavourite}
+          >
+            {isFavourite ? <StarIcon className="h-3.5 w-3.5" /> : <StarOutlineIcon className="h-3.5 w-3.5" />}
           </IconButton>
         )}
 

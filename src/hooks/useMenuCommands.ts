@@ -47,7 +47,7 @@ export function useMenuCommands(player: YouTubePlayerControls): void {
           player.previous()
           break
         case 'set-favourite-playlist':
-          player.setFavouritePlaylist()
+          player.toggleFavouritePlaylist()
           break
       }
     })
