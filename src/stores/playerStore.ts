@@ -5,6 +5,8 @@ interface PlayerState {
   videoId: string | null
   title: string
   duration: number
+  /** Updated by a ticker that runs only while playing -- see usePlaybackProgress. */
+  currentTime: number
   playbackState: PlaybackState
   error: MediaError | null
 
@@ -23,6 +25,7 @@ interface PlayerState {
 interface PlayerActions {
   setVideoId(videoId: string | null): void
   setMetadata(metadata: { title: string; duration: number }): void
+  setCurrentTime(seconds: number): void
   setPlaybackState(state: PlaybackState): void
   setError(error: MediaError | null): void
   setVolume(volume: number): void
@@ -45,6 +48,7 @@ const initialState: PlayerState = {
   videoId: null,
   title: '',
   duration: 0,
+  currentTime: 0,
   playbackState: 'idle',
   error: null,
   volume: 70,
@@ -59,8 +63,10 @@ const initialState: PlayerState = {
 export const usePlayerStore = create<PlayerStore>((set) => ({
   ...initialState,
 
-  setVideoId: (videoId) => set({ videoId, error: null }),
+  setVideoId: (videoId) => set({ videoId, error: null, currentTime: 0 }),
   setMetadata: ({ title, duration }) => set({ title, duration }),
+  setCurrentTime: (seconds) =>
+    set({ currentTime: Number.isFinite(seconds) && seconds > 0 ? seconds : 0 }),
   setPlaybackState: (playbackState) => set({ playbackState }),
   setError: (error) => set({ error }),
   setVolume: (volume) => set({ volume: Math.min(100, Math.max(0, Math.round(volume))) }),

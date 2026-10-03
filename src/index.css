@@ -47,3 +47,59 @@ input {
 ::-webkit-scrollbar {
   display: none;
 }
+
+/* Range inputs for the scrub bar and volume slider.
+   The filled portion is driven by an inline --mt-fill percentage, so dragging
+   repaints a gradient instead of re-rendering React on every pointer move. */
+.mt-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mt-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-mt-accent) var(--mt-fill, 0%),
+    var(--color-mt-border) var(--mt-fill, 0%)
+  );
+}
+
+.mt-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  width: 10px;
+  margin-top: -3.5px;
+  border-radius: 999px;
+  background: #fff;
+  /* Hidden until hover or focus: a mini player should read as a thin line. */
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.mt-range:hover::-webkit-slider-thumb,
+.mt-range:focus-visible::-webkit-slider-thumb,
+.mt-range:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.mt-range:focus {
+  outline: none;
+}
+
+.mt-range:focus-visible::-webkit-slider-runnable-track {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-mt-accent) 55%, transparent);
+}
+
+.mt-range:disabled {
+  cursor: default;
+}
+
+.mt-range:disabled::-webkit-slider-runnable-track {
+  background: var(--color-mt-border);
+}

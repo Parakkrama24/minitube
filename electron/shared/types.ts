@@ -28,16 +28,19 @@ export interface AppSettings {
  * layout -- it leaves no room for a 16:9 frame once the bars exist.
  */
 export const TITLE_BAR_HEIGHT = 30
-export const CONTROL_BAR_HEIGHT = 54
-export const CHROME_HEIGHT = TITLE_BAR_HEIGHT + CONTROL_BAR_HEIGHT // 84
+/** Two rows: the scrub bar with its time readout, then the transport row. */
+export const PROGRESS_ROW_HEIGHT = 22
+export const TRANSPORT_ROW_HEIGHT = 46
+export const CONTROL_BAR_HEIGHT = PROGRESS_ROW_HEIGHT + TRANSPORT_ROW_HEIGHT // 68
+export const CHROME_HEIGHT = TITLE_BAR_HEIGHT + CONTROL_BAR_HEIGHT // 98
 
 export const VIDEO_ASPECT = 16 / 9
 
 /** width x (16:9 video + CHROME_HEIGHT), so the video is never letterboxed. */
 export const WINDOW_PRESETS = {
-  normal: { width: 420, height: 320 },
-  compact: { width: 320, height: 264 },
-  minimum: { width: 280, height: 241 }
+  normal: { width: 420, height: 334 },
+  compact: { width: 320, height: 278 },
+  minimum: { width: 280, height: 255 }
 } as const
 
 export const DEFAULT_SETTINGS: AppSettings = {

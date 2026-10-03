@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { MediaProvider } from '../providers/MediaProvider'
 import { YouTubeProvider } from '../providers/YouTubeProvider'
 import { usePlayerStore } from '../stores/playerStore'
-import { extractYouTubeVideoId } from '../utils/youtube'
+import { buildWatchUrl, extractYouTubeVideoId } from '../utils/youtube'
 
 export interface YouTubePlayerControls {
   /** Attach to the element that should host the player iframe. */
@@ -10,15 +10,19 @@ export interface YouTubePlayerControls {
   load(url: string): void
   togglePlay(): void
   stop(): void
+  /** Relative seek, used by the -10s / +10s controls and the arrow shortcuts. */
   seekBy(offsetSeconds: number): void
+  /** Absolute seek, used when scrubbing the progress bar. */
+  seekTo(seconds: number): void
   setVolume(volume: number): void
   toggleMute(): void
+  getCurrentTime(): number
 }
 
 /**
  * Owns the single MediaProvider instance and keeps the store in sync with it.
- * The provider is created once and destroyed on unmount -- it is deliberately
- * not part of React state, so player events never trigger a re-render storm.
+ * The provider lives in a ref rather than in React state, so player events never
+ * trigger a re-render storm.
  */
 export function useYouTubePlayer(): YouTubePlayerControls {
   const mountRef = useRef<HTMLDivElement>(null)
@@ -33,7 +37,12 @@ export function useYouTubePlayer(): YouTubePlayerControls {
       volume: store.volume,
       muted: store.muted,
       events: {
-        onStateChange: (state) => usePlayerStore.getState().setPlaybackState(state),
+        onStateChange: (state) => {
+          const next = usePlayerStore.getState()
+          next.setPlaybackState(state)
+          // Keep the readout honest at the moments the ticker is not running.
+          if (state !== 'playing') next.setCurrentTime(provider.getCurrentTime())
+        },
         onMetadata: (metadata) => usePlayerStore.getState().setMetadata(metadata),
         onError: (error) => {
           const next = usePlayerStore.getState()
@@ -51,7 +60,7 @@ export function useYouTubePlayer(): YouTubePlayerControls {
     }
   }, [])
 
-  const load = useCallback((url: string) => {
+  const loadInternal = useCallback((url: string, persist: boolean) => {
     const store = usePlayerStore.getState()
     const videoId = extractYouTubeVideoId(url)
 
@@ -65,11 +74,48 @@ export function useYouTubePlayer(): YouTubePlayerControls {
     store.setUrlInputExpanded(false)
     void providerRef.current?.load(url)
 
-    // Persist for the next launch; the video is cued, never auto-played.
-    void window.electronAPI.patchSettings({
-      lastVideoUrl: `https://www.youtube.com/watch?v=${videoId}`
-    })
+    if (persist) {
+      void window.electronAPI.patchSettings({ lastVideoUrl: buildWatchUrl(videoId) })
+    }
   }, [])
+
+  const load = useCallback((url: string) => loadInternal(url, true), [loadInternal])
+
+  /**
+   * Settings load lives here, next to the provider, because the provider is
+   * constructed from the store's defaults before getSettings() resolves. Pushing
+   * the restored volume and mute state into the player afterwards is what makes
+   * them actually take effect.
+   */
+  useEffect(() => {
+    let cancelled = false
+
+    void window.electronAPI.getSettings().then((settings) => {
+      if (cancelled) return
+
+      usePlayerStore.getState().hydrate({
+        volume: settings.volume,
+        muted: settings.muted,
+        alwaysOnTop: settings.alwaysOnTop,
+        clickShield: settings.clickShield
+      })
+
+      const provider = providerRef.current
+      if (provider) {
+        provider.setVolume(settings.volume)
+        if (settings.muted) provider.mute()
+        else provider.unmute()
+      }
+
+      // Restore the last video cued, never playing (spec section 16). Persisting
+      // again here would be a no-op write, so skip it.
+      if (settings.lastVideoUrl) loadInternal(settings.lastVideoUrl, false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [loadInternal])
 
   const togglePlay = useCallback(() => {
     const provider = providerRef.current
@@ -81,24 +127,44 @@ export function useYouTubePlayer(): YouTubePlayerControls {
   }, [])
 
   const stop = useCallback(() => {
-    providerRef.current?.stop()
-  }, [])
-
-  const seekBy = useCallback((offsetSeconds: number) => {
     const provider = providerRef.current
     if (!provider) return
-    provider.seek(provider.getCurrentTime() + offsetSeconds)
+    provider.stop()
+    usePlayerStore.getState().setCurrentTime(0)
   }, [])
+
+  const seekTo = useCallback((seconds: number) => {
+    const provider = providerRef.current
+    if (!provider) return
+    provider.seek(seconds)
+    // Update immediately so the handle does not snap back before the next tick.
+    usePlayerStore.getState().setCurrentTime(seconds)
+  }, [])
+
+  const seekBy = useCallback(
+    (offsetSeconds: number) => {
+      const provider = providerRef.current
+      if (!provider) return
+      const duration = provider.getDuration()
+      const target = provider.getCurrentTime() + offsetSeconds
+      seekTo(Math.max(0, duration > 0 ? Math.min(target, duration) : target))
+    },
+    [seekTo]
+  )
 
   const setVolume = useCallback((volume: number) => {
     const store = usePlayerStore.getState()
     store.setVolume(volume)
     providerRef.current?.setVolume(volume)
-    if (store.muted && volume > 0) {
-      store.setMuted(false)
-      providerRef.current?.unmute()
+
+    // Dragging the slider up is an implicit unmute; dragging to zero is a mute.
+    const muted = volume === 0
+    if (store.muted !== muted) {
+      store.setMuted(muted)
+      if (muted) providerRef.current?.mute()
+      else providerRef.current?.unmute()
     }
-    void window.electronAPI.patchSettings({ volume: Math.round(volume), muted: false })
+    void window.electronAPI.patchSettings({ volume: Math.round(volume), muted })
   }, [])
 
   const toggleMute = useCallback(() => {
@@ -110,5 +176,17 @@ export function useYouTubePlayer(): YouTubePlayerControls {
     void window.electronAPI.patchSettings({ muted: next })
   }, [])
 
-  return { mountRef, load, togglePlay, stop, seekBy, setVolume, toggleMute }
+  const getCurrentTime = useCallback(() => providerRef.current?.getCurrentTime() ?? 0, [])
+
+  return {
+    mountRef,
+    load,
+    togglePlay,
+    stop,
+    seekBy,
+    seekTo,
+    setVolume,
+    toggleMute,
+    getCurrentTime
+  }
 }

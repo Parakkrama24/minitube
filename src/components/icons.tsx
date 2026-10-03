@@ -126,3 +126,108 @@ export function LinkIcon({ className = BASE }: IconProps): React.JSX.Element {
     </svg>
   )
 }
+
+export function StopIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <rect x="4" y="4" width="8" height="8" rx="1.5" />
+    </svg>
+  )
+}
+
+export function Rewind10Icon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7.4 3.2A4.9 4.9 0 1 1 3 8" />
+      <path d="M7.7 1.6 6.1 3.3l1.8 1.5" />
+      <text x="8" y="11.4" fontSize="5.4" fill="currentColor" stroke="none" textAnchor="middle">
+        10
+      </text>
+    </svg>
+  )
+}
+
+export function Forward10Icon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.6 3.2A4.9 4.9 0 1 0 13 8" />
+      <path d="M8.3 1.6 9.9 3.3 8.1 4.8" />
+      <text x="8" y="11.4" fontSize="5.4" fill="currentColor" stroke="none" textAnchor="middle">
+        10
+      </text>
+    </svg>
+  )
+}
+
+export function VolumeHighIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.5 3 5 5.8H2.8v4.4H5L8.5 13V3Z" />
+      <path d="M11 6.2a2.6 2.6 0 0 1 0 3.6" />
+      <path d="M12.8 4.4a5.1 5.1 0 0 1 0 7.2" />
+    </svg>
+  )
+}
+
+export function VolumeLowIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.5 3 5 5.8H2.8v4.4H5L8.5 13V3Z" />
+      <path d="M11 6.2a2.6 2.6 0 0 1 0 3.6" />
+    </svg>
+  )
+}
+
+export function VolumeMutedIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.5 3 5 5.8H2.8v4.4H5L8.5 13V3Z" />
+      <path d="M11 6.5l3 3M14 6.5l-3 3" />
+    </svg>
+  )
+}

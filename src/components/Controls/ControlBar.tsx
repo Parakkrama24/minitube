@@ -1,9 +1,25 @@
 import { usePlayerStore } from '../../stores/playerStore'
 import { buildWatchUrl } from '../../utils/youtube'
-import { CursorIcon, LinkIcon, PauseIcon, PlayIcon, ShieldIcon } from '../icons'
+import {
+  CursorIcon,
+  Forward10Icon,
+  LinkIcon,
+  PauseIcon,
+  PlayIcon,
+  Rewind10Icon,
+  ShieldIcon,
+  StopIcon
+} from '../icons'
+import { ProgressBar } from './ProgressBar'
+import { VolumeControl } from './VolumeControl'
 
 interface ControlBarProps {
   onTogglePlay: () => void
+  onStop: () => void
+  onSeekBy: (offsetSeconds: number) => void
+  onSeekTo: (seconds: number) => void
+  onVolumeChange: (volume: number) => void
+  onToggleMute: () => void
 }
 
 interface IconButtonProps {
@@ -29,7 +45,7 @@ function IconButton({
       aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`grid h-7 w-7 place-items-center rounded transition-colors duration-150 disabled:cursor-default disabled:opacity-30 ${
+      className={`app-no-drag grid h-7 w-7 place-items-center rounded transition-colors duration-150 disabled:cursor-default disabled:opacity-25 ${
         active ? 'text-mt-accent' : 'text-mt-muted'
       } enabled:hover:bg-mt-elevated enabled:hover:text-mt-text`}
     >
@@ -39,11 +55,18 @@ function IconButton({
 }
 
 /**
- * Fixed 54px control row. Phase 3 carries play/pause plus the shield and
- * open-in-browser affordances; seek, volume, mute and the progress readout
- * arrive in Phase 4 and fit the same height.
+ * Two fixed rows totalling 68px: the scrub bar with its time readout, then the
+ * transport row. A single row could not hold transport, title and volume at the
+ * 420px default width without everything being unreadably small.
  */
-export function ControlBar({ onTogglePlay }: ControlBarProps): React.JSX.Element {
+export function ControlBar({
+  onTogglePlay,
+  onStop,
+  onSeekBy,
+  onSeekTo,
+  onVolumeChange,
+  onToggleMute
+}: ControlBarProps): React.JSX.Element {
   const videoId = usePlayerStore((state) => state.videoId)
   const title = usePlayerStore((state) => state.title)
   const playbackState = usePlayerStore((state) => state.playbackState)
@@ -53,6 +76,7 @@ export function ControlBar({ onTogglePlay }: ControlBarProps): React.JSX.Element
   const setUrlInputExpanded = usePlayerStore((state) => state.setUrlInputExpanded)
 
   const isPlaying = playbackState === 'playing'
+  const hasVideo = Boolean(videoId)
 
   const handleToggleShield = (): void => {
     const next = !clickShield
@@ -60,34 +84,51 @@ export function ControlBar({ onTogglePlay }: ControlBarProps): React.JSX.Element
     void window.electronAPI.patchSettings({ clickShield: next })
   }
 
-  const handleOpenInBrowser = (): void => {
-    if (!videoId) return
-    void window.electronAPI.openExternal(buildWatchUrl(videoId))
-  }
-
   return (
-    <footer className="flex h-[54px] shrink-0 items-center gap-1 border-t border-mt-border bg-mt-surface px-2">
-      <button
-        type="button"
-        title={isPlaying ? 'Pause' : 'Play'}
-        aria-label={isPlaying ? 'Pause' : 'Play'}
-        disabled={!videoId}
-        onClick={onTogglePlay}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-mt-elevated text-mt-text transition-colors duration-150 enabled:hover:bg-mt-accent disabled:cursor-default disabled:opacity-30"
-      >
-        {isPlaying ? <PauseIcon /> : <PlayIcon className="h-4 w-4 translate-x-[1px]" />}
-      </button>
+    /* Fixed 68px with the border inside the box, so the chrome height the window
+       sizing assumes stays exact. The transport row takes whatever the scrub row
+       leaves rather than a hardcoded height, which would overflow by the 1px the
+       border occupies. */
+    <footer className="flex h-[68px] shrink-0 flex-col border-t border-mt-border bg-mt-surface">
+      <ProgressBar onSeek={onSeekTo} />
 
-      <div className="min-w-0 flex-1 px-1.5">
-        <p className="truncate text-[11px] leading-tight text-mt-text" title={title || undefined}>
-          {title || (videoId ? 'Loading...' : 'Nothing playing')}
-        </p>
-        <p className="text-[10px] leading-tight text-mt-muted">
-          {videoId ? playbackStateLabel(playbackState) : 'Paste a link to begin'}
-        </p>
-      </div>
+      <div className="flex min-h-0 flex-1 items-center gap-0.5 px-2 pb-0.5">
+        <button
+          type="button"
+          title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+          disabled={!hasVideo}
+          onClick={onTogglePlay}
+          className="app-no-drag grid h-8 w-8 shrink-0 place-items-center rounded-full bg-mt-elevated text-mt-text transition-colors duration-150 enabled:hover:bg-mt-accent disabled:cursor-default disabled:opacity-25"
+        >
+          {isPlaying ? <PauseIcon /> : <PlayIcon className="h-4 w-4 translate-x-[1px]" />}
+        </button>
 
-      <div className="flex shrink-0 items-center">
+        <IconButton label="Stop" disabled={!hasVideo} onClick={onStop}>
+          <StopIcon className="h-3.5 w-3.5" />
+        </IconButton>
+        <IconButton label="Back 10 seconds (Ctrl+Left)" disabled={!hasVideo} onClick={() => onSeekBy(-10)}>
+          <Rewind10Icon />
+        </IconButton>
+        <IconButton
+          label="Forward 10 seconds (Ctrl+Right)"
+          disabled={!hasVideo}
+          onClick={() => onSeekBy(10)}
+        >
+          <Forward10Icon />
+        </IconButton>
+
+        <div className="min-w-0 flex-1 px-1.5">
+          <p className="truncate text-[11px] leading-tight text-mt-text" title={title || undefined}>
+            {title || (hasVideo ? 'Loading...' : 'Nothing playing')}
+          </p>
+          <p className="truncate text-[10px] leading-tight text-mt-muted">
+            {hasVideo ? playbackStateLabel(playbackState) : 'Paste a link to begin'}
+          </p>
+        </div>
+
+        <VolumeControl onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} />
+
         <IconButton
           label={urlInputExpanded ? 'Hide URL input' : 'Paste another link'}
           active={urlInputExpanded}
@@ -108,7 +149,13 @@ export function ControlBar({ onTogglePlay }: ControlBarProps): React.JSX.Element
           {clickShield ? <ShieldIcon /> : <CursorIcon />}
         </IconButton>
 
-        <IconButton label="Open in browser" disabled={!videoId} onClick={handleOpenInBrowser}>
+        <IconButton
+          label="Open in browser"
+          disabled={!hasVideo}
+          onClick={() => {
+            if (videoId) void window.electronAPI.openExternal(buildWatchUrl(videoId))
+          }}
+        >
           <LinkIcon className="h-4 w-4 rotate-180" />
         </IconButton>
       </div>

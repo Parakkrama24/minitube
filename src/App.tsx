@@ -3,34 +3,14 @@ import { ControlBar } from './components/Controls/ControlBar'
 import { PlayerSurface } from './components/Player/PlayerSurface'
 import { TitleBar } from './components/TitleBar/TitleBar'
 import { UrlInput } from './components/UrlInput/UrlInput'
+import { usePlaybackProgress } from './hooks/usePlaybackProgress'
 import { useYouTubePlayer } from './hooks/useYouTubePlayer'
-import { usePlayerStore } from './stores/playerStore'
 
 export default function App(): React.JSX.Element {
   const player = useYouTubePlayer()
-  const hydrate = usePlayerStore((state) => state.hydrate)
-  const setUrlInputExpanded = usePlayerStore((state) => state.setUrlInputExpanded)
 
-  // Restore persisted preferences once on launch. The last video is restored as
-  // a URL suggestion only -- spec section 16 forbids autoplay on restart.
-  useEffect(() => {
-    let cancelled = false
-
-    void window.electronAPI.getSettings().then((settings) => {
-      if (cancelled) return
-      hydrate({
-        volume: settings.volume,
-        muted: settings.muted,
-        alwaysOnTop: settings.alwaysOnTop,
-        clickShield: settings.clickShield
-      })
-      setUrlInputExpanded(true)
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [hydrate, setUrlInputExpanded])
+  // Samples elapsed time only while playing; see usePlaybackProgress.
+  usePlaybackProgress(player.getCurrentTime)
 
   // Window-level shortcuts. These work because the click shield keeps focus in
   // our document instead of letting the YouTube iframe swallow keypresses.
@@ -71,7 +51,14 @@ export default function App(): React.JSX.Element {
         <UrlInput onLoad={player.load} />
       </PlayerSurface>
 
-      <ControlBar onTogglePlay={player.togglePlay} />
+      <ControlBar
+        onTogglePlay={player.togglePlay}
+        onStop={player.stop}
+        onSeekBy={player.seekBy}
+        onSeekTo={player.seekTo}
+        onVolumeChange={player.setVolume}
+        onToggleMute={player.toggleMute}
+      />
     </div>
   )
 }
