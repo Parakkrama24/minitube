@@ -32,6 +32,18 @@ export interface MediaProviderEvents {
   onError(error: MediaError): void
 }
 
+export interface PlaylistPosition {
+  /** Zero-based, as the IFrame API reports it. */
+  index: number
+  length: number
+}
+
+export interface LoadPlaylistOptions {
+  /** true starts playback immediately; false queues the first track. */
+  autoplay: boolean
+  index?: number
+}
+
 export interface MediaProvider {
   load(url: string): Promise<void>
   play(): void
@@ -45,6 +57,17 @@ export interface MediaProvider {
   getCurrentTime(): number
   getDuration(): number
   getTitle(): string
+
+  /**
+   * Playlist support. A provider with no concept of playlists implements these
+   * as no-ops returning null, rather than making every caller juggle a second
+   * interface for a capability most media sources have.
+   */
+  loadPlaylist(playlistId: string, options: LoadPlaylistOptions): Promise<void>
+  next(): void
+  previous(): void
+  getPlaylistPosition(): PlaylistPosition | null
+
   /** Release the underlying player and all its listeners. */
   destroy(): void
 }

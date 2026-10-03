@@ -21,6 +21,10 @@ export interface AppSettings {
   clickShield: boolean
   /** Opt-in: claim the system Play/Pause media key. Phase 6. */
   mediaKeys: boolean
+  /** Start the favourite playlist as soon as MiniTube launches. */
+  autoplay: boolean
+  favouritePlaylistId?: string
+  favouritePlaylistTitle?: string
 }
 
 /**
@@ -49,7 +53,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   volume: 70,
   muted: false,
   clickShield: true,
-  mediaKeys: false
+  mediaKeys: false,
+  autoplay: true
 }
 
 /**
@@ -67,6 +72,9 @@ export type MenuCommand =
   | 'seek-back'
   | 'seek-forward'
   | 'toggle-mute'
+  | 'next-track'
+  | 'previous-track'
+  | 'set-favourite-playlist'
 
 /** The exact surface exposed on `window.electronAPI`. Nothing else crosses the bridge. */
 export interface MiniTubeApi {

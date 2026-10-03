@@ -22,6 +22,8 @@ Working today:
 - Remembers window position and size across restarts, safely
 - YouTube URL input accepting `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
   `/live/`, a missing protocol, and a bare video id
+- Playlists: paste a playlist URL, with previous/next and a `3 / 10` position
+- **Autoplay your favourite playlist on launch**, toggleable from the menu
 - Full transport: play/pause, stop, -10s / +10s, and a draggable scrub bar
 - Volume slider and mute, with the icon reflecting the level
 - `0:05 / 0:19` elapsed/total readout, switching to `h:mm:ss` past an hour
@@ -140,8 +142,33 @@ npx electron . --remote-debugging-port=9222
 npm run verify:e2e
 ```
 
-It loads real videos, so it needs network access. 27 checks currently pass
+It loads real videos, so it needs network access. 32 checks currently pass
 against the packaged binary, not just a dev build.
+
+Run it against a **freshly launched** app. The suite mutates volume, mute and the
+loaded video as it goes, so a second run against the same instance inherits that
+state and reports false failures.
+
+## Playlists and autoplay
+
+Paste a playlist URL (`youtube.com/playlist?list=...`, or a `watch?v=...&list=...`
+link — the playlist wins when a URL carries both). Use *Set Current Playlist as
+Favourite* in the menu, and it starts automatically next launch.
+
+Two things worth knowing:
+
+- **Autoplay needs an Electron switch, not just a player option.** Chromium
+  blocks playback no click started, so the playlist would load and sit there.
+  `autoplayPolicy: 'no-user-gesture-required'` in `electron/main/window.ts` is
+  what makes it work. Volume and mute are applied *before* anything loads, so
+  autoplay cannot surprise you at full volume.
+- **Mix/radio playlists (`RD...`) are rejected.** YouTube does not allow them to
+  be embedded, so accepting one would produce a player that loads and then
+  silently never starts. `UL` and `TL` lists are refused for the same reason.
+  Note that ordinary playlists can be embed-blocked too, exactly as videos can.
+
+Watch Later and Watch History cannot be supported by anything: Google removed
+third-party access in 2016, and the API returns empty lists for both.
 
 ## Keyboard shortcuts
 
@@ -150,6 +177,7 @@ against the packaged binary, not just a dev build.
 | `Space` | Play / pause |
 | `Ctrl+Left` / `Ctrl+Right` | Back / forward 10 seconds |
 | `Ctrl+M` | Mute |
+| `Ctrl+Shift+Left` / `Ctrl+Shift+Right` | Previous / next track |
 | `Ctrl+N` | New video (focus the URL field) |
 | `Ctrl+R` | Reload the current video |
 | `Ctrl+Shift+T` | Toggle always-on-top |

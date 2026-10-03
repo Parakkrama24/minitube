@@ -241,3 +241,21 @@ export function MenuIcon({ className = BASE }: IconProps): React.JSX.Element {
     </svg>
   )
 }
+
+export function PrevTrackIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="1.8" height="9" rx="0.9" />
+      <path d="M12.5 4.4c0-.5-.5-.8-1-.5L6.4 7.4a.7.7 0 0 0 0 1.2l5.1 3.5c.5.3 1 0 1-.5V4.4Z" />
+    </svg>
+  )
+}
+
+export function NextTrackIcon({ className = BASE }: IconProps): React.JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M3.5 4.4c0-.5.5-.8 1-.5l5.1 3.5a.7.7 0 0 1 0 1.2l-5.1 3.5c-.5.3-1 0-1-.5V4.4Z" />
+      <rect x="10.7" y="3.5" width="1.8" height="9" rx="0.9" />
+    </svg>
+  )
+}

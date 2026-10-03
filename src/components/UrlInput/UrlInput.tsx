@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePlayerStore } from '../../stores/playerStore'
-import { extractYouTubeVideoId } from '../../utils/youtube'
+import { parseYouTubeTarget } from '../../utils/youtube'
 
 interface UrlInputProps {
   onLoad: (url: string) => void
@@ -35,7 +35,9 @@ export function UrlInput({ onLoad }: UrlInputProps): React.JSX.Element | null {
     if (!trimmed) return
 
     // Validate here so the message appears without waiting on the player.
-    if (!extractYouTubeVideoId(trimmed)) {
+    // parseYouTubeTarget, not extractYouTubeVideoId: the latter only knows about
+    // single videos and would reject every playlist URL.
+    if (!parseYouTubeTarget(trimmed)) {
       setLocalError("That doesn't look like a valid YouTube URL.")
       return
     }
@@ -53,7 +55,7 @@ export function UrlInput({ onLoad }: UrlInputProps): React.JSX.Element | null {
           type="text"
           value={value}
           spellCheck={false}
-          placeholder="Paste YouTube URL..."
+          placeholder="Paste a YouTube video or playlist URL..."
           onChange={(event) => {
             setValue(event.target.value)
             if (localError) setLocalError(null)

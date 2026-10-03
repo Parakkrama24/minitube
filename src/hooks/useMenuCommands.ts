@@ -40,6 +40,15 @@ export function useMenuCommands(player: YouTubePlayerControls): void {
         case 'toggle-mute':
           player.toggleMute()
           break
+        case 'next-track':
+          player.next()
+          break
+        case 'previous-track':
+          player.previous()
+          break
+        case 'set-favourite-playlist':
+          player.setFavouritePlaylist()
+          break
       }
     })
 
@@ -50,7 +59,10 @@ export function useMenuCommands(player: YouTubePlayerControls): void {
   // renderer's back, so the store has to be told rather than left stale.
   useEffect(() => {
     const unsubscribe = window.electronAPI.onSettingsChanged((settings) => {
-      usePlayerStore.getState().setAlwaysOnTop(settings.alwaysOnTop)
+      const store = usePlayerStore.getState()
+      store.setAlwaysOnTop(settings.alwaysOnTop)
+      store.setAutoplay(settings.autoplay)
+      store.setFavouritePlaylistId(settings.favouritePlaylistId ?? null)
     })
 
     return unsubscribe

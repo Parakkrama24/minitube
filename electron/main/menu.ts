@@ -10,6 +10,11 @@ function sendCommand(getWindow: WindowGetter, command: MenuCommand): void {
   getWindow()?.webContents.send('menu:command', command)
 }
 
+/** Keeps a long playlist title from stretching the menu across the screen. */
+function truncate(text: string, max = 32): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`
+}
+
 function notifySettingsChanged(getWindow: WindowGetter, settings: AppSettings): void {
   getWindow()?.webContents.send('settings:changed', settings)
 }
@@ -92,6 +97,33 @@ export function buildAppMenu(getWindow: WindowGetter): Menu {
           checked: settings.muted,
           accelerator: 'CommandOrControl+M',
           click: () => sendCommand(getWindow, 'toggle-mute')
+        },
+        { type: 'separator' },
+        {
+          // Shift+arrows sit deliberately next to the Ctrl+arrow seek bindings.
+          label: 'Next Track',
+          accelerator: 'CommandOrControl+Shift+Right',
+          click: () => sendCommand(getWindow, 'next-track')
+        },
+        {
+          label: 'Previous Track',
+          accelerator: 'CommandOrControl+Shift+Left',
+          click: () => sendCommand(getWindow, 'previous-track')
+        },
+        {
+          label: settings.favouritePlaylistTitle
+            ? `Set as Favourite (now: ${truncate(settings.favouritePlaylistTitle)})`
+            : 'Set Current Playlist as Favourite',
+          click: () => sendCommand(getWindow, 'set-favourite-playlist')
+        },
+        {
+          label: 'Autoplay Favourite on Launch',
+          type: 'checkbox',
+          checked: settings.autoplay,
+          toolTip: 'Start your favourite playlist as soon as MiniTube opens.',
+          click: (item) => {
+            notifySettingsChanged(getWindow, patchSettings({ autoplay: item.checked }))
+          }
         },
         { type: 'separator' },
         {

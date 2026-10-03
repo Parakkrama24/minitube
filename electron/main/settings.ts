@@ -42,5 +42,20 @@ export function sanitizeSettingsPatch(input: unknown): Partial<AppSettings> {
   if (typeof src.lastVideoUrl === 'string' && src.lastVideoUrl.length <= 500) {
     out.lastVideoUrl = src.lastVideoUrl
   }
+  if (typeof src.autoplay === 'boolean') out.autoplay = src.autoplay
+
+  // Validated against the id alphabet rather than merely length-capped: this
+  // value is interpolated into a player request, and the renderer is untrusted.
+  if (src.favouritePlaylistId === null) {
+    out.favouritePlaylistId = undefined
+  } else if (
+    typeof src.favouritePlaylistId === 'string' &&
+    /^[A-Za-z0-9_-]{13,64}$/.test(src.favouritePlaylistId)
+  ) {
+    out.favouritePlaylistId = src.favouritePlaylistId
+  }
+  if (typeof src.favouritePlaylistTitle === 'string') {
+    out.favouritePlaylistTitle = src.favouritePlaylistTitle.slice(0, 200)
+  }
   return out
 }

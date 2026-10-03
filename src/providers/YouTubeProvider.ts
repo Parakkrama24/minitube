@@ -1,9 +1,11 @@
-import { extractYouTubeVideoId } from '../utils/youtube'
+import { extractYouTubeVideoId, isEmbeddablePlaylistId } from '../utils/youtube'
 import {
   mediaError,
+  type LoadPlaylistOptions,
   type MediaProvider,
   type MediaProviderEvents,
-  type PlaybackState
+  type PlaybackState,
+  type PlaylistPosition
 } from './MediaProvider'
 
 const IFRAME_API_SRC = 'https://www.youtube.com/iframe_api'
@@ -90,6 +92,7 @@ export class YouTubeProvider implements MediaProvider {
   private muted: boolean
   /** Set while a load is waiting for the player to become ready. */
   private pendingVideoId: string | null = null
+  private pendingPlaylist: ({ playlistId: string } & LoadPlaylistOptions) | null = null
 
   private readonly mount: HTMLElement
   private readonly events: MediaProviderEvents
@@ -126,13 +129,53 @@ export class YouTubeProvider implements MediaProvider {
 
     this.pendingVideoId = videoId
     try {
-      await this.createPlayer(videoId)
+      await this.createPlayer({ videoId })
     } catch {
       if (!this.destroyed) this.events.onError(mediaError('network'))
     }
   }
 
-  private async createPlayer(videoId: string): Promise<void> {
+  async loadPlaylist(playlistId: string, options: LoadPlaylistOptions): Promise<void> {
+    if (!isEmbeddablePlaylistId(playlistId)) {
+      this.events.onError(mediaError('embed-blocked'))
+      return
+    }
+
+    if (!navigator.onLine) {
+      this.events.onError(mediaError('network'))
+      return
+    }
+
+    this.title = ''
+    this.events.onStateChange('loading')
+
+    if (this.player && this.playerReady) {
+      // loadPlaylist starts playing, cuePlaylist only queues -- the same split
+      // as loadVideoById vs cueVideoById.
+      const args = {
+        list: playlistId,
+        listType: 'playlist' as const,
+        index: options.index ?? 0
+      }
+      if (options.autoplay) this.player.loadPlaylist(args)
+      else this.player.cuePlaylist(args)
+      return
+    }
+
+    this.pendingPlaylist = { playlistId, ...options }
+    try {
+      await this.createPlayer({ playlistId, index: options.index, autoplay: options.autoplay })
+    } catch {
+      if (!this.destroyed) this.events.onError(mediaError('network'))
+    }
+  }
+
+  private async createPlayer(initial: {
+    videoId?: string
+    playlistId?: string
+    index?: number
+    autoplay?: boolean
+  }): Promise<void> {
     const api = await loadIframeApi()
     if (this.destroyed) return
 
@@ -144,10 +187,10 @@ export class YouTubeProvider implements MediaProvider {
     this.mount.replaceChildren(target)
 
     this.player = new api.Player(target, {
-      videoId,
+      ...(initial.videoId ? { videoId: initial.videoId } : {}),
       host: PLAYER_HOST,
       playerVars: {
-        autoplay: 0,
+        autoplay: initial.autoplay ? 1 : 0,
         controls: 0, // MiniTube draws its own controls
         disablekb: 1,
         modestbranding: 1,
@@ -155,6 +198,9 @@ export class YouTubeProvider implements MediaProvider {
         fs: 0,
         iv_load_policy: 3,
         playsinline: 1,
+        ...(initial.playlistId
+          ? { list: initial.playlistId, listType: 'playlist' as const, index: initial.index ?? 0 }
+          : {}),
         // Must match the document origin or the postMessage handshake never
         // completes. In production this is the loopback server, not file://.
         origin: window.location.origin
@@ -175,11 +221,19 @@ export class YouTubeProvider implements MediaProvider {
     if (this.muted) this.player.mute()
     else this.player.unMute()
 
-    // A video queued before the player existed still needs cueing.
-    if (this.pendingVideoId && this.player.getVideoData().video_id !== this.pendingVideoId) {
+    // A video queued before the player existed still needs cueing. A playlist
+    // does not: it was passed through playerVars at construction, so re-cueing
+    // here would restart it and cancel the autoplay we just asked for.
+    if (
+      this.pendingVideoId &&
+      !this.pendingPlaylist &&
+      this.player.getVideoData().video_id !== this.pendingVideoId
+    ) {
       this.player.cueVideoById(this.pendingVideoId)
     }
     this.pendingVideoId = null
+    const wantedAutoplay = this.pendingPlaylist?.autoplay ?? false
+    this.pendingPlaylist = null
 
     this.emitMetadata()
 
@@ -189,6 +243,14 @@ export class YouTubeProvider implements MediaProvider {
     // UNSTARTED as cued since autoplay is off.
     const state = toPlaybackState(this.player.getPlayerState())
     this.events.onStateChange(state === 'idle' ? 'cued' : state)
+
+    // Belt and braces for autoplay: the autoplay playerVar is honoured only when
+    // Chromium's autoplay policy allows it. Electron is configured with
+    // autoplayPolicy 'no-user-gesture-required', but if a platform ignores the
+    // playerVar we still ask explicitly rather than sitting on a cued playlist.
+    if (wantedAutoplay && state !== 'playing' && state !== 'buffering') {
+      this.player.playVideo()
+    }
   }
 
   private handleStateChange(event: YT.OnStateChangeEvent): void {
@@ -264,6 +326,22 @@ export class YouTubeProvider implements MediaProvider {
     if (this.playerReady) this.player?.unMute()
   }
 
+  next(): void {
+    if (this.playerReady && this.getPlaylistPosition()) this.player?.nextVideo()
+  }
+
+  previous(): void {
+    if (this.playerReady && this.getPlaylistPosition()) this.player?.previousVideo()
+  }
+
+  getPlaylistPosition(): PlaylistPosition | null {
+    if (!this.playerReady || !this.player) return null
+    // getPlaylist returns null, not an empty array, when no playlist is loaded.
+    const entries = this.player.getPlaylist()
+    if (!entries || entries.length === 0) return null
+    return { index: this.player.getPlaylistIndex(), length: entries.length }
+  }
+
   getCurrentTime(): number {
     if (!this.playerReady || !this.player) return 0
     return this.player.getCurrentTime()
@@ -282,6 +360,7 @@ export class YouTubeProvider implements MediaProvider {
     this.destroyed = true
     this.playerReady = false
     this.pendingVideoId = null
+    this.pendingPlaylist = null
     // destroy() removes the iframe and every listener the API attached to it.
     this.player?.destroy()
     this.player = null

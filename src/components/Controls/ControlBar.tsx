@@ -4,8 +4,10 @@ import {
   CursorIcon,
   Forward10Icon,
   LinkIcon,
+  NextTrackIcon,
   PauseIcon,
   PlayIcon,
+  PrevTrackIcon,
   Rewind10Icon,
   ShieldIcon,
   StopIcon
@@ -20,6 +22,8 @@ interface ControlBarProps {
   onSeekTo: (seconds: number) => void
   onVolumeChange: (volume: number) => void
   onToggleMute: () => void
+  onNext: () => void
+  onPrevious: () => void
 }
 
 interface IconButtonProps {
@@ -65,7 +69,9 @@ export function ControlBar({
   onSeekBy,
   onSeekTo,
   onVolumeChange,
-  onToggleMute
+  onToggleMute,
+  onNext,
+  onPrevious
 }: ControlBarProps): React.JSX.Element {
   const videoId = usePlayerStore((state) => state.videoId)
   const title = usePlayerStore((state) => state.title)
@@ -74,9 +80,11 @@ export function ControlBar({
   const setClickShield = usePlayerStore((state) => state.setClickShield)
   const urlInputExpanded = usePlayerStore((state) => state.urlInputExpanded)
   const setUrlInputExpanded = usePlayerStore((state) => state.setUrlInputExpanded)
+  const playlistPosition = usePlayerStore((state) => state.playlistPosition)
 
   const isPlaying = playbackState === 'playing'
-  const hasVideo = Boolean(videoId)
+  // A playlist counts as playable even before its first track reports an id.
+  const hasVideo = Boolean(videoId) || Boolean(playlistPosition)
 
   const handleToggleShield = (): void => {
     const next = !clickShield
@@ -104,6 +112,17 @@ export function ControlBar({
           {isPlaying ? <PauseIcon /> : <PlayIcon className="h-4 w-4 translate-x-[1px]" />}
         </button>
 
+        {playlistPosition && (
+          <IconButton label="Previous track (Ctrl+Shift+Left)" onClick={onPrevious}>
+            <PrevTrackIcon className="h-3.5 w-3.5" />
+          </IconButton>
+        )}
+        {playlistPosition && (
+          <IconButton label="Next track (Ctrl+Shift+Right)" onClick={onNext}>
+            <NextTrackIcon className="h-3.5 w-3.5" />
+          </IconButton>
+        )}
+
         <IconButton label="Stop" disabled={!hasVideo} onClick={onStop}>
           <StopIcon className="h-3.5 w-3.5" />
         </IconButton>
@@ -123,7 +142,11 @@ export function ControlBar({
             {title || (hasVideo ? 'Loading...' : 'Nothing playing')}
           </p>
           <p className="truncate text-[10px] leading-tight text-mt-muted">
-            {hasVideo ? playbackStateLabel(playbackState) : 'Paste a link to begin'}
+            {playlistPosition
+              ? `${playbackStateLabel(playbackState)} · ${playlistPosition.index + 1} / ${playlistPosition.length}`
+              : hasVideo
+                ? playbackStateLabel(playbackState)
+                : 'Paste a link to begin'}
           </p>
         </div>
 

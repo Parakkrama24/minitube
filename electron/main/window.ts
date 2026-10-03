@@ -81,7 +81,11 @@ export function createPlayerWindow(appOrigin: string): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
-      spellcheck: false
+      spellcheck: false,
+      // Without this Chromium blocks playback that no click started, so an
+      // autoplayed playlist would load and then silently sit there. This is the
+      // single switch that makes launch-time autoplay work at all.
+      autoplayPolicy: 'no-user-gesture-required'
     }
   })
 

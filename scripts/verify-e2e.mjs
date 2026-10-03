@@ -19,6 +19,11 @@ const DEBUG_PORT = Number(process.env.MINITUBE_DEBUG_PORT ?? 9222)
 const EMBEDDABLE = 'https://youtu.be/jNQXAC9IVRw' // "Me at the zoo", embeddable
 const EMBED_BLOCKED = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' // owner blocks embedding
 const SHORTS_FORM = 'https://www.youtube.com/shorts/aqz-KE-bpKQ'
+// Official Google Developers playlist, 10 public videos -- chosen because an
+// official channel is the least likely fixture to disappear. Verified
+// embeddable; some playlists return error 150 just as single videos do.
+const PLAYLIST_URL = 'https://www.youtube.com/playlist?list=PL590L5WQmH8dpP0RyH5pCfIaDEdt9nk7r'
+const MIX_PLAYLIST_URL = 'https://www.youtube.com/playlist?list=RDdQw4w9WgXcQ'
 
 let nextId = 1
 
@@ -473,6 +478,88 @@ record(
   'mute toggles both ways and persists',
   muteResult.muted === true && muteResult.unmuted === false,
   `mute -> ${muteResult.muted}, unmute -> ${muteResult.unmuted}`
+)
+
+// --- Playlists --------------------------------------------------------------
+// A mix/radio list is auto-generated and not embeddable, so it must be refused
+// at the parser rather than producing a player that silently never starts.
+const mix = JSON.parse(await evaluate(ws, loadUrlScript(MIX_PLAYLIST_URL, 4000)))
+record(
+  'mix/radio playlist id rejected before loading',
+  mix.text.includes("doesn't look like a valid YouTube URL"),
+  'RD... refused'
+)
+
+const playlist = JSON.parse(await evaluate(ws, loadUrlScript(PLAYLIST_URL)))
+const READ_POSITION = `(() => {
+   const el = [...document.querySelectorAll('footer p')]
+     .map(p => p.textContent || '')
+     .find(t => t.includes('/'))
+   return JSON.stringify({ text: el || null })
+ })()`
+
+const position = JSON.parse(await evaluate(ws, READ_POSITION, false))
+record(
+  'playlist loads and reports its position',
+  playlist.settled === true && /\d+\s*\/\s*\d+/.test(position.text ?? ''),
+  position.text ?? JSON.stringify(playlist).slice(0, 140)
+)
+
+// Next/previous must actually move through the list.
+const navigation = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       const title = () => document.querySelector('footer p')?.textContent ?? ''
+       const click = (re) => [...document.querySelectorAll('footer button')]
+         .find(b => re.test(b.getAttribute('aria-label') ?? ''))?.click()
+       const first = title()
+       click(/Next track/)
+       let second = first
+       for (let i = 0; i < 40; i++) {
+         await new Promise(r => setTimeout(r, 500))
+         second = title()
+         if (second && second !== first && !/Loading/.test(second)) break
+       }
+       click(/Previous track/)
+       let third = second
+       for (let i = 0; i < 40; i++) {
+         await new Promise(r => setTimeout(r, 500))
+         third = title()
+         if (third && third !== second && !/Loading/.test(third)) break
+       }
+       return JSON.stringify({ first, second, third })
+     })()`
+  )
+)
+record(
+  'next track advances the playlist',
+  navigation.second !== navigation.first && navigation.second.length > 0,
+  `${navigation.first.slice(0, 28)}... -> ${navigation.second.slice(0, 28)}...`
+)
+record(
+  'previous track returns to the earlier entry',
+  navigation.third === navigation.first,
+  `back to ${navigation.third.slice(0, 34)}...`
+)
+
+// A single video after a playlist must clear the playlist controls, not leave
+// stale next/previous buttons behind.
+await evaluate(ws, loadUrlScript(EMBEDDABLE))
+const afterSingle = JSON.parse(
+  await evaluate(
+    ws,
+    `JSON.stringify({
+       hasNext: [...document.querySelectorAll('footer button')]
+         .some(b => /Next track/.test(b.getAttribute('aria-label') ?? ''))
+     })`,
+    false
+  )
+)
+record(
+  'loading a single video clears the playlist controls',
+  afterSingle.hasNext === false,
+  'next/previous hidden for a single video'
 )
 
 // --- Space shortcut, driven by real key events ------------------------------

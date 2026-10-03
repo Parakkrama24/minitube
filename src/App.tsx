@@ -55,6 +55,8 @@ export default function App(): React.JSX.Element {
         onSeekTo={player.seekTo}
         onVolumeChange={player.setVolume}
         onToggleMute={player.toggleMute}
+        onNext={player.next}
+        onPrevious={player.previous}
       />
     </div>
   )

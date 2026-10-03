@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MediaError, PlaybackState } from '../providers/MediaProvider'
+import type { MediaError, PlaybackState, PlaylistPosition } from '../providers/MediaProvider'
 
 interface PlayerState {
   videoId: string | null
@@ -9,6 +9,12 @@ interface PlayerState {
   currentTime: number
   playbackState: PlaybackState
   error: MediaError | null
+
+  /** Null whenever a single video is loaded rather than a playlist. */
+  playlistId: string | null
+  playlistPosition: PlaylistPosition | null
+  autoplay: boolean
+  favouritePlaylistId: string | null
 
   volume: number
   muted: boolean
@@ -26,6 +32,10 @@ interface PlayerActions {
   setVideoId(videoId: string | null): void
   setMetadata(metadata: { title: string; duration: number }): void
   setCurrentTime(seconds: number): void
+  setPlaylist(playlistId: string | null): void
+  setPlaylistPosition(position: PlaylistPosition | null): void
+  setAutoplay(value: boolean): void
+  setFavouritePlaylistId(playlistId: string | null): void
   setPlaybackState(state: PlaybackState): void
   setError(error: MediaError | null): void
   setVolume(volume: number): void
@@ -39,6 +49,8 @@ interface PlayerActions {
     muted: boolean
     alwaysOnTop: boolean
     clickShield: boolean
+    autoplay: boolean
+    favouritePlaylistId: string | null
   }): void
 }
 
@@ -51,6 +63,10 @@ const initialState: PlayerState = {
   currentTime: 0,
   playbackState: 'idle',
   error: null,
+  playlistId: null,
+  playlistPosition: null,
+  autoplay: true,
+  favouritePlaylistId: null,
   volume: 70,
   muted: false,
   alwaysOnTop: true,
@@ -67,6 +83,10 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   setMetadata: ({ title, duration }) => set({ title, duration }),
   setCurrentTime: (seconds) =>
     set({ currentTime: Number.isFinite(seconds) && seconds > 0 ? seconds : 0 }),
+  setPlaylist: (playlistId) => set({ playlistId, playlistPosition: null }),
+  setPlaylistPosition: (playlistPosition) => set({ playlistPosition }),
+  setAutoplay: (autoplay) => set({ autoplay }),
+  setFavouritePlaylistId: (favouritePlaylistId) => set({ favouritePlaylistId }),
   setPlaybackState: (playbackState) => set({ playbackState }),
   setError: (error) => set({ error }),
   setVolume: (volume) => set({ volume: Math.min(100, Math.max(0, Math.round(volume))) }),
@@ -82,6 +102,8 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
       muted: settings.muted,
       alwaysOnTop: settings.alwaysOnTop,
       clickShield: settings.clickShield,
+      autoplay: settings.autoplay,
+      favouritePlaylistId: settings.favouritePlaylistId ?? null,
       settingsLoaded: true
     })
 }))

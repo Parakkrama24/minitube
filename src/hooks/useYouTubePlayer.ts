@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { MediaProvider } from '../providers/MediaProvider'
 import { YouTubeProvider } from '../providers/YouTubeProvider'
 import { usePlayerStore } from '../stores/playerStore'
-import { buildWatchUrl, extractYouTubeVideoId } from '../utils/youtube'
+import { buildPlaylistUrl, buildWatchUrl, parseYouTubeTarget } from '../utils/youtube'
 
 export interface YouTubePlayerControls {
   /** Attach to the element that should host the player iframe. */
@@ -17,6 +17,10 @@ export interface YouTubePlayerControls {
   setVolume(volume: number): void
   toggleMute(): void
   getCurrentTime(): number
+  next(): void
+  previous(): void
+  /** Stores the currently playing playlist as the launch favourite. */
+  setFavouritePlaylist(): void
 }
 
 /**
@@ -42,6 +46,9 @@ export function useYouTubePlayer(): YouTubePlayerControls {
           next.setPlaybackState(state)
           // Keep the readout honest at the moments the ticker is not running.
           if (state !== 'playing') next.setCurrentTime(provider.getCurrentTime())
+          // State changes are exactly when a playlist advances a track, so this
+          // is the cheapest honest place to refresh the position.
+          next.setPlaylistPosition(provider.getPlaylistPosition())
         },
         onMetadata: (metadata) => usePlayerStore.getState().setMetadata(metadata),
         onError: (error) => {
@@ -60,26 +67,54 @@ export function useYouTubePlayer(): YouTubePlayerControls {
     }
   }, [])
 
-  const loadInternal = useCallback((url: string, persist: boolean) => {
-    const store = usePlayerStore.getState()
-    const videoId = extractYouTubeVideoId(url)
+  const loadInternal = useCallback(
+    (url: string, options: { persist: boolean; autoplay?: boolean }) => {
+      const store = usePlayerStore.getState()
+      const target = parseYouTubeTarget(url)
 
-    if (!videoId) {
-      store.setError({ code: 'invalid-url', message: "That doesn't look like a valid YouTube URL." })
-      return
-    }
+      if (!target) {
+        store.setError({
+          code: 'invalid-url',
+          message: "That doesn't look like a valid YouTube URL."
+        })
+        return
+      }
 
-    store.setVideoId(videoId)
-    store.setMetadata({ title: '', duration: 0 })
-    store.setUrlInputExpanded(false)
-    void providerRef.current?.load(url)
+      store.setMetadata({ title: '', duration: 0 })
+      store.setUrlInputExpanded(false)
 
-    if (persist) {
-      void window.electronAPI.patchSettings({ lastVideoUrl: buildWatchUrl(videoId) })
-    }
-  }, [])
+      // A playlist wins over the video id when a URL carries both: the user who
+      // pastes watch?v=X&list=PL wants the list, not that one track in isolation.
+      if (target.kind === 'playlist' || target.kind === 'video-in-playlist') {
+        store.setVideoId(target.kind === 'video-in-playlist' ? target.videoId : null)
+        store.setPlaylist(target.playlistId)
+        void providerRef.current?.loadPlaylist(target.playlistId, {
+          autoplay: options.autoplay ?? false,
+          ...(target.index === undefined ? {} : { index: target.index })
+        })
+        if (options.persist) {
+          void window.electronAPI.patchSettings({
+            lastVideoUrl: buildPlaylistUrl(target.playlistId)
+          })
+        }
+        return
+      }
 
-  const load = useCallback((url: string) => loadInternal(url, true), [loadInternal])
+      store.setVideoId(target.videoId)
+      store.setPlaylist(null)
+      void providerRef.current?.load(url)
+
+      if (options.persist) {
+        void window.electronAPI.patchSettings({ lastVideoUrl: buildWatchUrl(target.videoId) })
+      }
+    },
+    []
+  )
+
+  const load = useCallback(
+    (url: string) => loadInternal(url, { persist: true, autoplay: false }),
+    [loadInternal]
+  )
 
   /**
    * Settings load lives here, next to the provider, because the provider is
@@ -97,19 +132,33 @@ export function useYouTubePlayer(): YouTubePlayerControls {
         volume: settings.volume,
         muted: settings.muted,
         alwaysOnTop: settings.alwaysOnTop,
-        clickShield: settings.clickShield
+        clickShield: settings.clickShield,
+        autoplay: settings.autoplay,
+        favouritePlaylistId: settings.favouritePlaylistId ?? null
       })
 
       const provider = providerRef.current
       if (provider) {
+        // Volume and mute are applied before anything loads, so autoplay can
+        // never surprise the user at full volume.
         provider.setVolume(settings.volume)
         if (settings.muted) provider.mute()
         else provider.unmute()
       }
 
-      // Restore the last video cued, never playing (spec section 16). Persisting
-      // again here would be a no-op write, so skip it.
-      if (settings.lastVideoUrl) loadInternal(settings.lastVideoUrl, false)
+      if (settings.favouritePlaylistId) {
+        // The feature: the favourite playlist starts on its own when autoplay is
+        // on, and is merely queued when it is off.
+        loadInternal(buildPlaylistUrl(settings.favouritePlaylistId), {
+          persist: false,
+          autoplay: settings.autoplay
+        })
+        return
+      }
+
+      // No favourite: fall back to re-cueing the last video, never playing it
+      // (spec section 16). Persisting again here would be a no-op write.
+      if (settings.lastVideoUrl) loadInternal(settings.lastVideoUrl, { persist: false })
     })
 
     return () => {
@@ -178,6 +227,31 @@ export function useYouTubePlayer(): YouTubePlayerControls {
 
   const getCurrentTime = useCallback(() => providerRef.current?.getCurrentTime() ?? 0, [])
 
+  const next = useCallback(() => {
+    providerRef.current?.next()
+  }, [])
+
+  const previous = useCallback(() => {
+    providerRef.current?.previous()
+  }, [])
+
+  const setFavouritePlaylist = useCallback(() => {
+    const store = usePlayerStore.getState()
+    const playlistId = store.playlistId
+    if (!playlistId) {
+      store.setError({
+        code: 'invalid-url',
+        message: 'Load a playlist first, then set it as your favourite.'
+      })
+      return
+    }
+    store.setFavouritePlaylistId(playlistId)
+    void window.electronAPI.patchSettings({
+      favouritePlaylistId: playlistId,
+      favouritePlaylistTitle: store.title || playlistId
+    })
+  }, [])
+
   return {
     mountRef,
     load,
@@ -187,6 +261,9 @@ export function useYouTubePlayer(): YouTubePlayerControls {
     seekTo,
     setVolume,
     toggleMute,
-    getCurrentTime
+    getCurrentTime,
+    next,
+    previous,
+    setFavouritePlaylist
   }
 }
