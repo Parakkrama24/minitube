@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-mt-bg: #0b0b0f;
+  --color-mt-surface: #15151c;
+  --color-mt-elevated: #1e1e28;
+  --color-mt-border: #2a2a36;
+  --color-mt-text: #e9e9f0;
+  --color-mt-muted: #8b8b9a;
+  --color-mt-accent: #ff4d4f;
+
+  --font-sans:
+    'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-mt-bg);
+  color: var(--color-mt-text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  /* A widget, not a document: no accidental text selection while dragging. */
+  user-select: none;
+  cursor: default;
+}
+
+/* Electron drag regions. Buttons inside a drag region must opt back out,
+   otherwise they move the window instead of firing a click. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+input {
+  user-select: text;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}

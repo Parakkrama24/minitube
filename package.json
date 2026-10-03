@@ -1,0 +1,45 @@
+{
+  "name": "minitube",
+  "version": "0.1.0",
+  "description": "A small always-on-top floating YouTube player for Windows",
+  "main": "./out/main/index.js",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
+    "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "lint": "eslint . --ext .ts,.tsx",
+    "verify:e2e": "node scripts/verify-e2e.mjs",
+    "format": "prettier --write \"**/*.{ts,tsx,css,json,md}\"",
+    "package": "npm run build && electron-builder --win --config electron-builder.yml"
+  },
+  "dependencies": {
+    "electron-store": "8.2.0",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@types/youtube": "^0.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.1.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "prettier": "^3.4.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}

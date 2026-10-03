@@ -1,0 +1,19 @@
+appId: com.minitube.app
+productName: MiniTube
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: MiniTube-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: MiniTube
