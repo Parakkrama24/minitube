@@ -160,8 +160,8 @@ const vp = JSON.parse(
   await evaluate(ws, 'JSON.stringify({ w: innerWidth, h: innerHeight })', false)
 )
 record(
-  'window opens at 420x320 (16:9 video + 84px chrome)',
-  vp.w === 420 && vp.h === 320,
+  'window opens at 420x334 (16:9 video + 98px chrome)',
+  vp.w === 420 && vp.h === 334,
   `${vp.w}x${vp.h}`
 )
 
@@ -310,6 +310,165 @@ record(
   blocked.text.replace(/\s+/g, ' ').slice(0, 72)
 )
 
+// --- Phase 4: transport controls --------------------------------------------
+// Reload a known-good video; the embed-blocked case above left the player idle.
+const replay = JSON.parse(await evaluate(ws, loadUrlScript(EMBEDDABLE)))
+if (!replay.settled) {
+  record('reload embeddable video for control checks', false, JSON.stringify(replay).slice(0, 160))
+}
+
+/** Reads "0:05 / 0:19" out of the control bar and returns the elapsed seconds. */
+const READ_ELAPSED = `(() => {
+   const el = document.querySelector('[data-testid=time-readout]')
+   if (!el) return JSON.stringify({ found: false })
+   const [cur, total] = el.textContent.split('/').map(t => t.trim())
+   const secs = (t) => t.split(':').reverse().reduce((a, v, i) => a + Number(v) * 60 ** i, 0)
+   return JSON.stringify({ found: true, text: el.textContent.trim(), cur: secs(cur), total: secs(total) })
+ })()`
+
+const readout = JSON.parse(await evaluate(ws, READ_ELAPSED, false))
+record(
+  'time readout renders elapsed / total',
+  readout.found && readout.total > 0,
+  readout.found ? readout.text : 'readout not found'
+)
+
+// Leading semicolon: this is interpolated after other statements, and without
+// it the IIFE is parsed as a call on whatever the previous line evaluated to.
+const clickByLabel = (pattern) => `;(() => {
+   const btn = [...document.querySelectorAll('footer button')]
+     .find(b => ${pattern}.test(b.getAttribute('aria-label') ?? ''))
+   if (!btn) return 'NOT FOUND'
+   btn.click()
+   return 'clicked'
+ })()`
+
+// Progress must advance while playing...
+const advanced = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       const read = () => ${READ_ELAPSED}
+       ;[...document.querySelectorAll('footer button')]
+         .find(b => /^Play$/.test(b.getAttribute('aria-label') ?? ''))?.click()
+       await new Promise(r => setTimeout(r, 3000))
+       const a = JSON.parse(read())
+       await new Promise(r => setTimeout(r, 2500))
+       const b = JSON.parse(read())
+       return JSON.stringify({ first: a.cur, second: b.cur })
+     })()`
+  )
+)
+record(
+  'progress advances while playing',
+  advanced.second > advanced.first,
+  `${advanced.first}s -> ${advanced.second}s`
+)
+
+// ...and must stop advancing when paused, which proves the ticker is gated on
+// playback rather than running unconditionally.
+const whilePaused = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       ;[...document.querySelectorAll('footer button')]
+         .find(b => /^Pause$/.test(b.getAttribute('aria-label') ?? ''))?.click()
+       await new Promise(r => setTimeout(r, 900))
+       const a = JSON.parse(${READ_ELAPSED})
+       await new Promise(r => setTimeout(r, 2500))
+       const b = JSON.parse(${READ_ELAPSED})
+       return JSON.stringify({ first: a.cur, second: b.cur })
+     })()`
+  )
+)
+record(
+  'progress frozen while paused (ticker gated on playback)',
+  whilePaused.second === whilePaused.first,
+  `${whilePaused.first}s -> ${whilePaused.second}s`
+)
+
+// Seek forward
+const seeked = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       const before = JSON.parse(${READ_ELAPSED})
+       ${clickByLabel('/Forward 10/')}
+       await new Promise(r => setTimeout(r, 1200))
+       const after = JSON.parse(${READ_ELAPSED})
+       return JSON.stringify({ before: before.cur, after: after.cur })
+     })()`
+  )
+)
+record(
+  'forward 10s seek jumps ahead',
+  seeked.after >= seeked.before + 8,
+  `${seeked.before}s -> ${seeked.after}s`
+)
+
+// Stop returns to the beginning
+const stopped = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       ${clickByLabel('/^Stop$/')}
+       await new Promise(r => setTimeout(r, 1500))
+       const t = JSON.parse(${READ_ELAPSED})
+       return JSON.stringify({ cur: t.cur, state: document.body.innerText })
+     })()`
+  )
+)
+record(
+  'stop rewinds to the start and does not keep playing',
+  stopped.cur === 0 && !/Playing/.test(stopped.state),
+  `elapsed=${stopped.cur}s, state=${/Paused|Ready|Idle|Ended/.exec(stopped.state)?.[0] ?? '?'}`
+)
+
+// Volume slider
+const volumeResult = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       const slider = [...document.querySelectorAll('footer input[type=range]')]
+         .find(i => i.getAttribute('aria-label') === 'Volume')
+       if (!slider) return JSON.stringify({ found: false })
+       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+       setter.call(slider, '35')
+       slider.dispatchEvent(new Event('input', { bubbles: true }))
+       slider.dispatchEvent(new Event('change', { bubbles: true }))
+       await new Promise(r => setTimeout(r, 400))
+       const s = await window.electronAPI.getSettings()
+       return JSON.stringify({ found: true, persisted: s.volume, shown: slider.value })
+     })()`
+  )
+)
+record(
+  'volume slider changes volume and persists it',
+  volumeResult.found && volumeResult.persisted === 35,
+  `slider=${volumeResult.shown}, persisted=${volumeResult.persisted}`
+)
+
+// Mute toggle
+const muteResult = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       ${clickByLabel('/^Mute$/')}
+       await new Promise(r => setTimeout(r, 400))
+       const muted = (await window.electronAPI.getSettings()).muted
+       ${clickByLabel('/^Unmute$/')}
+       await new Promise(r => setTimeout(r, 400))
+       const unmuted = (await window.electronAPI.getSettings()).muted
+       return JSON.stringify({ muted, unmuted })
+     })()`
+  )
+)
+record(
+  'mute toggles both ways and persists',
+  muteResult.muted === true && muteResult.unmuted === false,
+  `mute -> ${muteResult.muted}, unmute -> ${muteResult.unmuted}`
+)
+
 // --- Persistence / IPC validation ------------------------------------------
 const settings = JSON.parse(
   await evaluate(
@@ -323,7 +482,7 @@ const settings = JSON.parse(
 )
 record(
   'last video url persisted through ipc',
-  typeof settings.lastVideoUrl === 'string' && settings.lastVideoUrl.includes('dQw4w9WgXcQ'),
+  typeof settings.lastVideoUrl === 'string' && settings.lastVideoUrl.includes('jNQXAC9IVRw'),
   settings.lastVideoUrl
 )
 

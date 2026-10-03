@@ -7,9 +7,10 @@ tab that is actually playing your music or lecture is the hardest one to find.
 MiniTube keeps that playback in a dedicated floating widget that stays above your
 other windows, so pausing something takes one click instead of a tab hunt.
 
-**Status: Phases 1-3 of 8 complete.** The window works and YouTube video loads
-and plays. The full control bar, remaining persistence, keyboard shortcuts and
-the installer are not built yet -- see [Roadmap](#roadmap).
+**Status: Phases 1-5 of 8 complete.** The player is usable: video loads, plays,
+seeks, and its volume and position survive a restart. The application menu,
+opt-in media keys, compact mode and the installer are not built yet -- see
+[Roadmap](#roadmap).
 
 ## Features
 
@@ -20,17 +21,22 @@ Working today:
 - Remembers window position and size across restarts, safely
 - YouTube URL input accepting `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
   `/live/`, a missing protocol, and a bare video id
-- Video playback with play/pause, video title, and loading/error states
+- Full transport: play/pause, stop, -10s / +10s, and a draggable scrub bar
+- Volume slider and mute, with the icon reflecting the level
+- `0:05 / 0:19` elapsed/total readout, switching to `h:mm:ss` past an hour
+- Video title, loading and error states
 - Friendly handling of invalid URLs, unavailable videos, videos whose owner
   blocks embedding, and network failures
 - Click shield: keeps keyboard focus in MiniTube and hides YouTube's end-screen
   recommendations (see [Click shield](#click-shield))
 - Open the current video in your real browser
 - `Space`, `Ctrl+Left`, `Ctrl+Right`, `Ctrl+M` wired to play/pause, seek and mute
+- Remembers volume, mute state and the last video across restarts; the video is
+  re-cued but never auto-played
 - Dark, compact UI
 
-Not yet built: stop button, volume slider, mute button, seek bar, progress
-readout, compact-mode toggle, global media keys, application menu, installer.
+Not yet built: compact-mode toggle, global media keys, application menu,
+playback speed, installer.
 
 ## Tech stack
 
@@ -76,7 +82,7 @@ npx electron . --remote-debugging-port=9222
 npm run verify:e2e
 ```
 
-It loads real videos, so it needs network access. 16 checks currently pass
+It loads real videos, so it needs network access. 23 checks currently pass
 against a production build.
 
 ## Architecture
@@ -109,9 +115,11 @@ electron/
   preload/        contextBridge bridge
   shared/types.ts types and constants shared by all three processes
 src/
-  components/     TitleBar, Player, Controls, UrlInput
+  components/     TitleBar, Player, Controls (ControlBar, ProgressBar,
+                  VolumeControl), UrlInput
   providers/      MediaProvider interface + YouTubeProvider
   hooks/          useYouTubePlayer -- owns the single provider instance
+                  usePlaybackProgress -- the playback-gated elapsed-time ticker
   stores/         Zustand store
   utils/youtube.ts extractYouTubeVideoId
 ```
@@ -181,12 +189,17 @@ control bar turns it off when you need to click the real player.
 
 | State | Size | Video area |
 | --- | --- | --- |
-| Normal (default) | 420 x 320 | 420 x 236 |
-| Compact | 320 x 264 | 320 x 180 |
-| Minimum | 280 x 241 | 280 x 157 |
+| Normal (default) | 420 x 334 | 420 x 236 |
+| Compact | 320 x 278 | 320 x 180 |
+| Minimum | 280 x 255 | 280 x 157 |
 
-Title bar (30px) + control bar (54px) = 84px of chrome. Each size is a 16:9 video
-area plus that 84px.
+Title bar (30px) + control bar (68px) = 98px of chrome. Each size is a 16:9 video
+area plus that 98px.
+
+The control bar is two rows -- a 22px scrub row and a 46px transport row. One row
+could not hold transport, title and volume at 420px wide without everything being
+unreadably small. Its height is set explicitly so the 1px top border sits inside
+the 68px; otherwise the video area quietly loses a pixel and stops being 16:9.
 
 ### `electron-store` is pinned to 8.2.0
 
@@ -230,15 +243,22 @@ sets it. A normal terminal does not; clear the variable if you hit it.
 | 1 | Project setup | done |
 | 2 | Frameless floating window | done |
 | 3 | YouTube integration | done |
-| 4 | Full control bar: stop, seek, volume, mute, progress | next |
-| 5 | Remaining persistence: volume, mute, last video restore | planned |
-| 6 | Keyboard shortcuts, opt-in media keys, app menu | planned |
+| 4 | Full control bar: stop, seek, volume, mute, progress | done |
+| 5 | Persistence: volume, mute, last video restore | done |
+| 6 | Application menu, opt-in media keys | next |
 | 7 | UI polish, compact mode, animations | planned |
 | 8 | `MiniTube-Setup.exe` installer | planned |
 
-Phase 4 will poll playback position on a ~400ms interval that runs **only while
-playing** and clears on pause or end. The IFrame API has no `timeupdate` event,
-and tight polling is explicitly ruled out by the spec's performance section.
+### How the elapsed time is tracked
+
+The IFrame API has no `timeupdate` event, so elapsed time is sampled on a 400ms
+interval. That interval is created when playback starts and cleared the moment it
+stops, so a paused or idle MiniTube runs no timers at all -- the spec's
+performance section rules out polling unconditionally.
+
+Only `ProgressBar` subscribes to `currentTime`, so a tick re-renders one small row
+rather than the whole player. The verification suite asserts both halves of this:
+that the readout advances while playing, and that it stays frozen while paused.
 
 ## License
 
