@@ -7,6 +7,9 @@ files:
   - out/**/*
   - package.json
 win:
+  # electron-builder derives the .ico from this 256px png.
+  # Regenerate with: node scripts/make-icon.mjs
+  icon: build/icon.png
   target:
     - target: nsis
       arch: [x64]

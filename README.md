@@ -7,10 +7,11 @@ tab that is actually playing your music or lecture is the hardest one to find.
 MiniTube keeps that playback in a dedicated floating widget that stays above your
 other windows, so pausing something takes one click instead of a tab hunt.
 
-**Status: Phases 1-6 of 8 complete.** The player is usable and complete as a
-widget: video loads, plays, seeks, its state survives a restart, and a native
-menu carries the window and playback actions. Only the installer and discretionary
-visual polish remain -- see [Roadmap](#roadmap).
+**Status: the MVP is complete.** Video loads, plays and seeks; state survives a
+restart; a native menu carries the window and playback actions; and
+`npm run package` produces a working Windows installer. The 25-check end-to-end
+suite passes against the packaged binary, not just a dev build. What remains is
+discretionary polish -- see [Roadmap](#roadmap).
 
 ## Features
 
@@ -67,8 +68,62 @@ Other scripts:
 npm run typecheck    # strict TypeScript, main + renderer separately
 npm run lint
 npm run build        # bundles main, preload and renderer into out/
-npm run package      # Windows installer (Phase 8 -- not yet exercised)
+npm run package      # Windows installer into release/
 ```
+
+## Building the installer
+
+```bash
+npm run package
+```
+
+Produces `release/MiniTube-Setup-<version>.exe`, an NSIS installer: per-user (no
+admin prompt), with a directory chooser and a desktop shortcut. The unpacked
+application is left in `release/win-unpacked/` if you want to run it without
+installing.
+
+The first run downloads the NSIS toolchain and takes several minutes; later runs
+are quick.
+
+The app icon is generated, not checked in as binary art:
+
+```bash
+node scripts/make-icon.mjs      # rewrites build/icon.png
+```
+
+electron-builder derives the Windows `.ico` from that 256px PNG. The script
+encodes the PNG directly with `zlib` rather than adding an image dependency to a
+project whose premise is staying small.
+
+**The installer is unsigned.** Windows SmartScreen will show "Windows protected
+your PC" on a machine that has not seen it before; *More info -> Run anyway*
+dismisses it. Removing that warning needs a code-signing certificate, which is a
+purchase, not a code change.
+
+### If packaging fails on "Cannot create symbolic link"
+
+electron-builder downloads a `winCodeSign` bundle that contains macOS symlinks
+(`libcrypto.dylib`, `libssl.dylib`). Windows refuses to create those without
+Developer Mode or elevation, 7-Zip exits non-zero, and electron-builder treats
+the whole extraction as failed -- even though every file Windows actually needs
+(`rcedit-x64.exe`, the NSIS pieces) extracted fine. The build then ends with no
+installer.
+
+Either enable **Settings -> System -> For developers -> Developer Mode**, or
+pre-populate the cache without the darwin files:
+
+```bash
+CACHE="$LOCALAPPDATA/electron-builder/Cache/winCodeSign"
+node_modules/7zip-bin/win/x64/7za.exe x "$CACHE"/*.7z   "-o$CACHE/winCodeSign-2.6.0" "-xr!darwin" -y
+```
+
+electron-builder finds `winCodeSign-2.6.0` already present and skips the
+extraction entirely. MiniTube is not code-signed, so nothing in the skipped
+darwin tree is used.
+
+Note that `npm run package 2>&1 | tail` reports the exit code of `tail`, not of
+the build, so a failed package run can look like it succeeded. Use
+`set -o pipefail` or redirect to a file.
 
 ### End-to-end verification
 
@@ -85,8 +140,8 @@ npx electron . --remote-debugging-port=9222
 npm run verify:e2e
 ```
 
-It loads real videos, so it needs network access. 25 checks currently pass
-against a production build.
+It loads real videos, so it needs network access. 27 checks currently pass
+against the packaged binary, not just a dev build.
 
 ## Keyboard shortcuts
 
@@ -279,7 +334,7 @@ sets it. A normal terminal does not; clear the variable if you hit it.
 | 5 | Persistence: volume, mute, last video restore | done |
 | 6 | Application menu, opt-in media keys | done |
 | 7 | UI polish, compact mode, animations | mostly inherent; compact mode done |
-| 8 | `MiniTube-Setup.exe` installer | next |
+| 8 | `MiniTube-Setup.exe` installer | done |
 
 ### How the elapsed time is tracked
 

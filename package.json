@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "A small always-on-top floating YouTube player for Windows",
   "main": "./out/main/index.js",
+  "author": "Parakkrama Dasanayaka",
   "license": "MIT",
   "private": true,
   "scripts": {

@@ -475,6 +475,69 @@ record(
   `mute -> ${muteResult.muted}, unmute -> ${muteResult.unmuted}`
 )
 
+// --- Space shortcut, driven by real key events ------------------------------
+// The Ctrl+* bindings are native menu accelerators and cannot be reached from
+// CDP, but Space is owned by the renderer, so it can be exercised properly.
+async function pressSpace() {
+  await rpc(ws, 'Input.dispatchKeyEvent', {
+    type: 'rawKeyDown',
+    windowsVirtualKeyCode: 32,
+    code: 'Space',
+    key: ' ',
+    text: ' '
+  })
+  await rpc(ws, 'Input.dispatchKeyEvent', { type: 'char', text: ' ', key: ' ' })
+  await rpc(ws, 'Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    windowsVirtualKeyCode: 32,
+    code: 'Space',
+    key: ' '
+  })
+}
+
+const readState = () =>
+  evaluate(ws, '(document.body.innerText.match(/Playing|Paused|Ready|Ended/) || ["?"])[0]', false)
+
+await evaluate(ws, 'document.activeElement && document.activeElement.blur(), 1', false)
+const spaceBefore = await readState()
+await pressSpace()
+await evaluate(ws, 'new Promise(r => setTimeout(r, 3000))')
+const spaceAfterPlay = await readState()
+await pressSpace()
+await evaluate(ws, 'new Promise(r => setTimeout(r, 2500))')
+const spaceAfterPause = await readState()
+
+record(
+  'Space toggles playback (real key events)',
+  spaceAfterPlay === 'Playing' && spaceAfterPause === 'Paused',
+  `${spaceBefore} -> ${spaceAfterPlay} -> ${spaceAfterPause}`
+)
+
+// Space must stay inert while a URL is being typed, which is exactly why it is
+// not registered as a menu accelerator.
+await evaluate(
+  ws,
+  `(() => {
+     if (!document.querySelector('input[type=text]')) {
+       [...document.querySelectorAll('footer button')]
+         .find(b => /Paste another link/.test(b.getAttribute('aria-label') ?? ''))?.click()
+     }
+     return 1
+   })()`,
+  false
+)
+await evaluate(ws, 'new Promise(r => setTimeout(r, 400))')
+await evaluate(ws, "document.querySelector('input[type=text]').focus(), 1", false)
+const beforeTyping = await readState()
+await pressSpace()
+await evaluate(ws, 'new Promise(r => setTimeout(r, 1500))')
+const afterTyping = await readState()
+record(
+  'Space does not toggle playback while typing a URL',
+  beforeTyping === afterTyping,
+  `${beforeTyping} -> ${afterTyping} (unchanged)`
+)
+
 // --- Phase 6: menu commands and listener plumbing ---------------------------
 // Menu commands arrive from the main process. Driving them through the exposed
 // listener proves the whole path -- bridge, handler wiring and player action --
