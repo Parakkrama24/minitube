@@ -543,6 +543,75 @@ record(
   `back to ${navigation.third.slice(0, 34)}...`
 )
 
+// Playback controls must work *while a playlist is loaded*, not only for a
+// single video. A playlist has no video id of its own, and gating play/pause and
+// the scrub bar on one left both silently inert for every playlist.
+const playlistControls = JSON.parse(
+  await evaluate(
+    ws,
+    `(async () => {
+       const state = () => (document.body.innerText.match(/Playing|Paused|Ready|Ended/) || ['?'])[0]
+       const btn = () => [...document.querySelectorAll('footer button')]
+         .find(b => /^(Play|Pause)$/.test(b.getAttribute('aria-label') ?? ''))
+       const scrub = () => document.querySelector('input[aria-label=Seek]')
+
+       const scrubDisabledAtRest = scrub() ? scrub().disabled : 'no scrub bar'
+
+       const waitFor = async (want, tries) => {
+         for (let i = 0; i < tries; i++) {
+           await new Promise(r => setTimeout(r, 400))
+           if (state() === want) return true
+         }
+         return false
+       }
+
+       // The previous checks leave the playlist playing, so normalise to a known
+       // paused state before testing the transition in each direction.
+       if (state() === 'Playing') { btn().click(); await waitFor('Paused', 30) }
+
+       btn().click()
+       const started = await waitFor('Playing', 40)
+       btn().click()
+       const paused = await waitFor('Paused', 30)
+
+       // Scrubbing: drive the range input the way a drag would.
+       const bar = scrub()
+       let sought = null
+       if (bar && !bar.disabled) {
+         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+         const target = Math.max(12, Math.floor(Number(bar.max) * 0.35))
+         setter.call(bar, String(target))
+         bar.dispatchEvent(new Event('input', { bubbles: true }))
+         bar.dispatchEvent(new Event('change', { bubbles: true }))
+         bar.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }))
+         await new Promise(r => setTimeout(r, 1800))
+         const el = document.querySelector('[data-testid=time-readout]')
+         const cur = el ? el.textContent.split('/')[0].trim() : '0:00'
+         sought = { asked: target, got: cur.split(':').reverse().reduce((a, v, i) => a + Number(v) * 60 ** i, 0) }
+       }
+
+       return JSON.stringify({ started, paused, scrubDisabledAtRest, sought, videoId: !!document.querySelector('iframe') })
+     })()`
+  )
+)
+record(
+  'play/pause works while a playlist is loaded',
+  playlistControls.started === true && playlistControls.paused === true,
+  `started=${playlistControls.started} paused=${playlistControls.paused}`
+)
+record(
+  'scrub bar is enabled for a playlist',
+  playlistControls.scrubDisabledAtRest === false,
+  `disabled=${playlistControls.scrubDisabledAtRest}`
+)
+record(
+  'scrubbing a playlist track seeks',
+  Boolean(playlistControls.sought) && playlistControls.sought.got >= playlistControls.sought.asked - 4,
+  playlistControls.sought
+    ? `asked ${playlistControls.sought.asked}s, landed ${playlistControls.sought.got}s`
+    : 'scrub bar was disabled'
+)
+
 // A single video after a playlist must clear the playlist controls, not leave
 // stale next/previous buttons behind.
 await evaluate(ws, loadUrlScript(EMBEDDABLE))

@@ -50,7 +50,12 @@ export function useYouTubePlayer(): YouTubePlayerControls {
           // is the cheapest honest place to refresh the position.
           next.setPlaylistPosition(provider.getPlaylistPosition())
         },
-        onMetadata: (metadata) => usePlayerStore.getState().setMetadata(metadata),
+        onMetadata: (metadata) => {
+          const store = usePlayerStore.getState()
+          store.setMetadata(metadata)
+          // A playlist reports its track here and nowhere else.
+          if (metadata.videoId) store.setCurrentVideoId(metadata.videoId)
+        },
         onError: (error) => {
           const next = usePlayerStore.getState()
           next.setError(error)
@@ -169,8 +174,10 @@ export function useYouTubePlayer(): YouTubePlayerControls {
   const togglePlay = useCallback(() => {
     const provider = providerRef.current
     if (!provider) return
-    const { playbackState, videoId } = usePlayerStore.getState()
-    if (!videoId) return
+    const { playbackState, videoId, playlistId } = usePlayerStore.getState()
+    // A playlist has no video id until its first track reports one, so gating on
+    // videoId alone left play/pause inert for the whole of a playlist.
+    if (!videoId && !playlistId) return
     if (playbackState === 'playing') provider.pause()
     else provider.play()
   }, [])

@@ -285,7 +285,11 @@ export class YouTubeProvider implements MediaProvider {
     const data = this.player.getVideoData()
     const title = data.title ?? ''
     if (title) this.title = title
-    this.events.onMetadata({ title: this.title, duration: this.player.getDuration() })
+    this.events.onMetadata({
+      title: this.title,
+      duration: this.player.getDuration(),
+      ...(data.video_id ? { videoId: data.video_id } : {})
+    })
   }
 
   play(): void {

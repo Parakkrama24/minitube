@@ -31,6 +31,8 @@ interface PlayerState {
 interface PlayerActions {
   setVideoId(videoId: string | null): void
   setMetadata(metadata: { title: string; duration: number }): void
+  /** Track change inside a playlist: same as setVideoId but only when it differs. */
+  setCurrentVideoId(videoId: string): void
   setCurrentTime(seconds: number): void
   setPlaylist(playlistId: string | null): void
   setPlaylistPosition(position: PlaylistPosition | null): void
@@ -81,6 +83,10 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
 
   setVideoId: (videoId) => set({ videoId, error: null, currentTime: 0 }),
   setMetadata: ({ title, duration }) => set({ title, duration }),
+  setCurrentVideoId: (videoId) =>
+    set((state) =>
+      state.videoId === videoId ? state : { videoId, currentTime: 0, error: null }
+    ),
   setCurrentTime: (seconds) =>
     set({ currentTime: Number.isFinite(seconds) && seconds > 0 ? seconds : 0 }),
   setPlaylist: (playlistId) => set({ playlistId, playlistPosition: null }),

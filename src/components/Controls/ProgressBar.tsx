@@ -17,6 +17,7 @@ export function ProgressBar({ onSeek }: ProgressBarProps): React.JSX.Element {
   const currentTime = usePlayerStore((state) => state.currentTime)
   const duration = usePlayerStore((state) => state.duration)
   const videoId = usePlayerStore((state) => state.videoId)
+  const playlistId = usePlayerStore((state) => state.playlistId)
 
   /**
    * While the user drags, the handle follows the pointer instead of the ticker.
@@ -24,7 +25,8 @@ export function ProgressBar({ onSeek }: ProgressBarProps): React.JSX.Element {
    */
   const [scrubValue, setScrubValue] = useState<number | null>(null)
 
-  const seekable = Boolean(videoId) && duration > 0
+  // Playlists count: gating on videoId alone disabled the scrub bar for them.
+  const seekable = (Boolean(videoId) || Boolean(playlistId)) && duration > 0
   const displayed = scrubValue ?? Math.min(currentTime, duration || currentTime)
   const fillPercent = duration > 0 ? Math.min(100, (displayed / duration) * 100) : 0
 

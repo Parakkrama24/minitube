@@ -11,6 +11,12 @@ export type PlaybackState = 'idle' | 'loading' | 'cued' | 'playing' | 'paused' |
 export interface MediaMetadata {
   title: string
   duration: number
+  /**
+   * The track actually playing. A playlist has no single video id of its own,
+   * so without this the app has no idea what is on screen and any control that
+   * gates on a video id goes dead.
+   */
+  videoId?: string
 }
 
 /** Stable codes so UI copy lives in one place instead of being thrown around. */
